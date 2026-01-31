@@ -1,0 +1,19 @@
+{
+  "name": "lark-bot-bridge-opencode-plugin",
+  "module": "index.ts",
+  "version": "1.0.0",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "latest",
+    "@opencode-ai/sdk": "latest",
+    "@larksuiteoapi/node-sdk": "^1.26.0"
+  },
+  "resolutions": {
+    "@opencode-ai/sdk": "latest",
+    "zod": "latest"
+  }
+}
