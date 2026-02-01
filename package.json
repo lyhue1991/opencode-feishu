@@ -2,7 +2,7 @@
   "name": "opencode-plugin-feishu-bridge",
   "version": "1.0.0",
   "description": "Feishu Bridge Plugin for OpenCode",
-  "main": "dist/index.js",
+  "main": "index.ts",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
