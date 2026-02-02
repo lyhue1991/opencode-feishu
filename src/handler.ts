@@ -1,6 +1,7 @@
 import type { OpenCodeApi } from './opencode';
 import type { FeishuClient } from './feishu';
 import { LOADING_EMOJI } from './constants';
+import { Part, Event } from '@opencode-ai/sdk';
 
 interface SessionContext {
   chatId: string;
@@ -10,7 +11,7 @@ interface SessionContext {
 interface MessageBuffer {
   feishuMsgId: string | null;
   fullContent: string;
-  type: 'text' | 'reasoning';
+  type: Part['type'];
   lastUpdateTime: number;
   isFinished: boolean;
 }
@@ -52,8 +53,11 @@ export async function startGlobalEventListener(api: OpenCodeApi, feishu: FeishuC
               console.log(`[Listener] 🔧 Tool Running: ${part.tool}`);
             }
           }
-        } else if (event.type === 'session.deleted' || event.type === 'session.error') {
-          const sid = (event.properties as any).sessionID || (event.properties as any).info?.id;
+        } else if (event.type === 'session.deleted') {
+          const sid = event.properties.info.id;
+          if (sid) sessionToFeishuMap.delete(sid);
+        } else if (event.type === 'session.error') {
+          const sid = event.properties.sessionID;
           if (sid) sessionToFeishuMap.delete(sid);
         }
       }
@@ -70,8 +74,12 @@ export async function startGlobalEventListener(api: OpenCodeApi, feishu: FeishuC
   connect();
 }
 
-async function handleStreamUpdate(feishu: FeishuClient, chatId: string, msgId: string, part: any) {
+async function handleStreamUpdate(feishu: FeishuClient, chatId: string, msgId: string, part: Part) {
   if (!msgId) return;
+
+  if (part.type !== 'text' && part.type !== 'reasoning') {
+    return;
+  }
 
   let buffer = messageBuffers.get(msgId);
   if (!buffer) {
@@ -85,7 +93,7 @@ async function handleStreamUpdate(feishu: FeishuClient, chatId: string, msgId: s
     messageBuffers.set(msgId, buffer);
   }
 
-  if (typeof part.text === 'string') {
+  if (part.text) {
     buffer.fullContent = part.text;
   }
 
@@ -106,7 +114,6 @@ async function handleStreamUpdate(feishu: FeishuClient, chatId: string, msgId: s
         const sentId = await feishu.sendMessage(chatId, displayContent);
         if (sentId) buffer.feishuMsgId = sentId;
       } else {
-        // 后续：编辑消息
         await feishu.editMessage(chatId, buffer.feishuMsgId, displayContent);
       }
     } catch (e) {
@@ -121,7 +128,6 @@ export const createMessageHandler = (api: OpenCodeApi, feishu: FeishuClient) => 
   return async (chatId: string, text: string, messageId: string, senderId: string) => {
     console.log(`[Bridge] 📥 Incoming: "${text}"`);
 
-    // 1. 心跳检测
     if (text.trim().toLowerCase() === 'ping') {
       await feishu.sendMessage(chatId, 'Pong! ⚡️');
       return;

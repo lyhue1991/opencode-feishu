@@ -1,4 +1,4 @@
-import type { TextPartInput } from '@opencode-ai/sdk';
+import type { Part, TextPartInput } from '@opencode-ai/sdk';
 import type { OpenCodeApi } from './opencode';
 import type { FeishuClient } from './feishu';
 import { LOADING_EMOJI } from './constants';
@@ -8,8 +8,8 @@ export const sessionOwnerMap = new Map<string, string>();
 const chatQueues = new Map<string, Promise<void>>();
 
 const MAX_CONTENT_LENGTH = 500;
-const POLLING_INTERVAL = 2000; // 2秒轮询一次
-const MAX_POLLING_ATTEMPTS = 60 * 2; // 最大等待 2分钟 (60 * 2s)
+const POLLING_INTERVAL = 2000;
+const MAX_POLLING_ATTEMPTS = 60 * 2;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -75,7 +75,7 @@ export const createMessageHandler = (api: OpenCodeApi, feishu: FeishuClient) => 
           // 过滤出：角色的 assistant 的消息 AND 还没处理过的消息
           // 注意：我们要按时间顺序处理
           const newMessages = messages.filter(
-            (m: any) => m.info?.role === 'assistant' && !processedMsgIds.has(m.info.id)
+            m => m.info?.role === 'assistant' && !processedMsgIds.has(m.info.id)
           );
 
           if (newMessages.length === 0) {
@@ -102,15 +102,10 @@ export const createMessageHandler = (api: OpenCodeApi, feishu: FeishuClient) => 
           const lastMsg = newMessages[newMessages.length - 1];
           const lastParts = lastMsg.parts || [];
 
-          // 核心判断逻辑：
-          // 如果包含 'tool' (工具调用) 或 'reasoning' (纯思考) -> 任务可能没结束，继续 Loop
-          // 如果包含 'text' 且不包含 'tool' -> 通常意味着最终回答
-          // 如果包含 'step-finish' -> 明确的步骤结束信号
-
-          const hasToolCall = lastParts.some((p: any) => p.type === 'tool');
-          const hasReasoningOnly = lastParts.every((p: any) => p.type === 'reasoning');
-          const hasText = lastParts.some((p: any) => p.type === 'text');
-          const hasStepFinish = lastParts.some((p: any) => p.type === 'step-finish');
+          const hasToolCall = lastParts.some(p => p.type === 'tool');
+          const hasReasoningOnly = lastParts.every(p => p.type === 'reasoning');
+          const hasText = lastParts.some(p => p.type === 'text');
+          const hasStepFinish = lastParts.some(p => p.type === 'step-finish');
 
           if (hasStepFinish) {
             console.log(`[Bridge] ✅ Detected step-finish. Cycle complete.`);
@@ -145,7 +140,7 @@ export const createMessageHandler = (api: OpenCodeApi, feishu: FeishuClient) => 
 };
 
 // --- 辅助函数：格式化 Parts ---
-async function formatPartsToFeishu(parts: any[]): Promise<string> {
+async function formatPartsToFeishu(parts: Part[]): Promise<string> {
   let finalResponse = '';
 
   parts.forEach((part: any, index: number) => {

@@ -4,7 +4,7 @@ import type {
   SessionPromptData,
   SessionMessagesData,
   SessionListData,
-  OpencodeClient, // 确保引入了 OpencodeClient
+  OpencodeClient,
 } from '@opencode-ai/sdk';
 
 export interface OpenCodeApi {
