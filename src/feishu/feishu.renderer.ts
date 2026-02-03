@@ -198,11 +198,8 @@ function renderModelsCommand(command: string): any[] | null {
         elements.push(larkMd(`**${p.title}**\n-`));
         return;
       }
-      elements.push(
-        larkMd(
-          `**${p.title}**\n${models.map(m => `- ${m}`).join('\n')}`
-        )
-      );
+      const lines = models.map((m, idx) => `${idx + 1}. ${m}`);
+      elements.push(larkMd(`**${p.title}**\n${lines.join('\n')}`));
     });
   }
 

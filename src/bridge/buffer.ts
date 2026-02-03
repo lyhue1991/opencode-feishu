@@ -30,6 +30,7 @@ export interface MessageBuffer {
   reasoning: string; // 原始 reasoning
   text: string; // 原始 answer text
   tools: Map<string, ToolView>; // callID -> tool
+  files: Array<{ filename?: string; mime: string; url: string }>;
   lastUpdateTime: number;
   lastDisplayHash: string;
   status: BufferStatus;
@@ -69,6 +70,7 @@ export function getOrInitBuffer(
       reasoning: '',
       text: '',
       tools: new Map<string, ToolView>(),
+      files: [],
       lastUpdateTime: 0,
       lastDisplayHash: '',
       status: 'streaming',
@@ -158,6 +160,16 @@ export function buildDisplayContent(buffer: MessageBuffer): string {
     out.push('');
   }
 
+  if (buffer.files.length > 0) {
+    out.push('## Files');
+    buffer.files.forEach((f, idx) => {
+      const name = f.filename ? `${f.filename}` : `file-${idx + 1}`;
+      out.push(`- ${name} (${f.mime})`);
+      out.push(`  ${f.url}`);
+    });
+    out.push('');
+  }
+
   // Status（纯字段，无 label/emoji）
   out.push('## Status');
   out.push(`${buffer.status}${buffer.statusNote ? `: ${buffer.statusNote}` : ''}`);
@@ -227,6 +239,22 @@ export function applyPartToBuffer(buffer: MessageBuffer, part: Part, delta?: str
     }
 
     buffer.tools.set(callID, view);
+    return;
+  }
+
+  if (part.type === 'file') {
+    const filePart = part as any;
+    if (
+      !buffer.files.some(
+        f => f.url === filePart.url && f.filename === filePart.filename
+      )
+    ) {
+      buffer.files.push({
+        filename: filePart.filename,
+        mime: filePart.mime,
+        url: filePart.url,
+      });
+    }
     return;
   }
 

@@ -37,16 +37,6 @@ function parseFeishuConfig(cfg: Config): FeishuConfig {
     console.error(`[Plugin] Missing callback_url for ${AGENT_LARK} in webhook mode`);
   }
 
-  let port: string | number | undefined;
-  if (callbackUrl) {
-    try {
-      const u = new URL(callbackUrl);
-      if (u.port) port = u.port;
-    } catch {
-      // ignore
-    }
-  }
-
   if (!app_id || !app_secret) {
     throw new Error(`[Plugin] Missing options for ${AGENT_LARK}: app_id/app_secret`);
   }

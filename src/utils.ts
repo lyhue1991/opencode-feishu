@@ -5,6 +5,8 @@ export function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export const DEFAULT_MAX_FILE_MB = 10;
+
 export function parseSlashCommand(text: string): { command: string; arguments: string } | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith('/')) return null;

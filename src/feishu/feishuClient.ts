@@ -4,7 +4,8 @@ import * as http from 'http';
 import * as crypto from 'crypto';
 
 import type { FeishuConfig, IncomingMessageHandler } from '../types';
-import { globalState } from '../utils';
+import type { FilePartInput } from '@opencode-ai/sdk';
+import { DEFAULT_MAX_FILE_MB, globalState } from '../utils';
 
 function clip(s: string, n = 2000) {
   if (!s) return '';
@@ -94,6 +95,80 @@ export class FeishuClient {
     } catch (e: any) {
       console.error(`[Feishu] ❌ Content Parse Error!`, e);
       return '';
+    }
+  }
+
+  private async readStreamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    return new Promise((resolve, reject) => {
+      stream.on('data', chunk => chunks.push(Buffer.from(chunk)));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', reject);
+    });
+  }
+
+  private async buildFilePart(
+    messageId: string,
+    msgType: string,
+    contentJson: string,
+    chatId: string
+  ): Promise<FilePartInput | null> {
+    let content: any;
+    try {
+      content = JSON.parse(contentJson);
+    } catch {
+      return null;
+    }
+
+    const fileKey = content.file_key || content.image_key || content.fileKey || content.imageKey;
+    if (!fileKey) return null;
+
+    const fileName =
+      content.file_name || content.name || content.fileName || `${msgType}-${fileKey}`;
+
+    try {
+      const maxSizeMb =
+        (globalState.__bridge_max_file_size?.get?.(chatId) as number) ??
+        DEFAULT_MAX_FILE_MB;
+      const maxBytes = Math.floor(maxSizeMb * 1024 * 1024);
+
+      const res = await this.apiClient.im.messageResource.get({
+        path: { message_id: messageId, file_key: fileKey },
+        params: { type: msgType },
+      });
+      const contentLengthRaw = res.headers?.['content-length'];
+      const contentLength = contentLengthRaw ? Number(contentLengthRaw) : 0;
+      if (contentLength && contentLength > maxBytes) {
+        await this.sendMessage(
+          chatId,
+          `❌ 文件过大（${(contentLength / 1024 / 1024).toFixed(
+            2
+          )}MB），当前限制 ${maxSizeMb}MB。可用 /maxFileSize <xmb> 调整。`
+        );
+        return null;
+      }
+      const stream = res.getReadableStream();
+      const buf = await this.readStreamToBuffer(stream);
+      if (buf.length > maxBytes) {
+        await this.sendMessage(
+          chatId,
+          `❌ 文件过大（${(buf.length / 1024 / 1024).toFixed(
+            2
+          )}MB），当前限制 ${maxSizeMb}MB。可用 /maxFileSize <xmb> 调整。`
+        );
+        return null;
+      }
+      const mime = (res.headers?.['content-type'] as string) || 'application/octet-stream';
+      const url = `data:${mime};base64,${buf.toString('base64')}`;
+      return {
+        type: 'file',
+        mime,
+        filename: fileName,
+        url,
+      };
+    } catch (e) {
+      console.error('[Feishu] ❌ Failed to download resource:', e);
+      return null;
     }
   }
 
@@ -202,10 +277,17 @@ export class FeishuClient {
 
         if (this.isMessageProcessed(messageId)) return;
 
-        const text = this.parseAndCleanContent(message.content, message.mentions);
-        if (!text) return;
+        const msgType = (message as any).msg_type || (message as any).message_type || 'text';
+        if (msgType === 'text') {
+          const text = this.parseAndCleanContent(message.content, message.mentions);
+          if (!text) return;
+          await onMessage(chatId, text, messageId, senderId);
+          return;
+        }
 
-        await onMessage(chatId, text, messageId, senderId);
+        const part = await this.buildFilePart(messageId, msgType, message.content, chatId);
+        const text = part ? `收到 ${msgType} 文件：${part.filename || ''}` : '';
+        await onMessage(chatId, text, messageId, senderId, part ? [part] : undefined);
       },
     });
 
@@ -254,11 +336,31 @@ export class FeishuClient {
             const senderId = event.sender?.sender_id?.open_id || '';
 
             if (messageId && chatId && !this.isMessageProcessed(messageId)) {
-              const text = this.parseAndCleanContent(event.message.content, event.message.mentions);
-              if (text) {
-                onMessage(chatId, text, messageId, senderId).catch(err => {
-                  console.error('[Feishu Webhook] ❌ Handler Error:', err);
-                });
+              const msgType =
+                event.message?.message_type || event.message?.msg_type || 'text';
+              if (msgType === 'text') {
+                const text = this.parseAndCleanContent(
+                  event.message.content,
+                  event.message.mentions
+                );
+                if (text) {
+                  onMessage(chatId, text, messageId, senderId).catch(err => {
+                    console.error('[Feishu Webhook] ❌ Handler Error:', err);
+                  });
+                }
+              } else {
+                const part = await this.buildFilePart(
+                  messageId,
+                  msgType,
+                  event.message.content,
+                  chatId
+                );
+                const text = part ? `收到 ${msgType} 文件：${part.filename || ''}` : '';
+                onMessage(chatId, text, messageId, senderId, part ? [part] : undefined).catch(
+                  err => {
+                    console.error('[Feishu Webhook] ❌ Handler Error:', err);
+                  }
+                );
               }
             }
             return;

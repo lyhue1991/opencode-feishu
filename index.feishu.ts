@@ -33,16 +33,6 @@ function parseFeishuConfig(options: Record<string, any>): FeishuConfig {
     console.error('[FeishuBridge] Missing callback_url in webhook mode');
   }
 
-  let port: string | number | undefined;
-  if (callbackUrl) {
-    try {
-      const u = new URL(callbackUrl);
-      if (u.port) port = u.port;
-    } catch {
-      // ignore
-    }
-  }
-
   if (!app_id || !app_secret) {
     throw new Error(`[FeishuBridge] Missing options: app_id/app_secret in agent["${AGENT_LARK}"]`);
   }

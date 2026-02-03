@@ -2,11 +2,14 @@
 
 export type BridgeMode = 'ws' | 'webhook';
 
+import type { FilePartInput, TextPartInput } from '@opencode-ai/sdk';
+
 export type IncomingMessageHandler = (
   chatId: string,
   text: string,
   messageId: string,
-  senderId: string
+  senderId: string,
+  parts?: Array<TextPartInput | FilePartInput>
 ) => Promise<void>;
 
 export interface BridgeAdapter {

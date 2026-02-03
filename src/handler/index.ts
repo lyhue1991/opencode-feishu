@@ -1,5 +1,5 @@
 // src/handler/index.ts
-import type { OpencodeClient } from '@opencode-ai/sdk';
+import type { FilePartInput, OpencodeClient, TextPartInput } from '@opencode-ai/sdk';
 import type { BridgeAdapter } from '../types';
 import { LOADING_EMOJI } from '../constants';
 import { AdapterMux } from './mux';
@@ -13,7 +13,7 @@ import {
   shouldFlushNow,
 } from '../bridge/buffer';
 
-import { parseSlashCommand, sleep } from '../utils';
+import { DEFAULT_MAX_FILE_MB, parseSlashCommand, sleep, globalState } from '../utils';
 
 type SessionContext = { chatId: string; senderId: string };
 
@@ -26,6 +26,9 @@ const sessionToAdapterKey = new Map<string, string>(); // sessionId -> adapterKe
 const chatAgent = new Map<string, string>(); // adapterKey:chatId -> agent
 const chatSessionList = new Map<string, Array<{ id: string; title: string }>>();
 const chatAgentList = new Map<string, Array<{ id: string; name: string }>>();
+const chatMaxFileSizeMb: Map<string, number> =
+  globalState.__bridge_max_file_size || new Map<string, number>();
+globalState.__bridge_max_file_size = chatMaxFileSizeMb;
 
 let isListenerStarted = false;
 let shouldStopListener = false;
@@ -302,6 +305,7 @@ export function stopGlobalEventListener() {
   chatAgent.clear();
   chatSessionList.clear();
   chatAgentList.clear();
+  chatMaxFileSizeMb.clear();
 }
 
 /**
@@ -311,19 +315,26 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
   const adapter = mux.get(adapterKey);
   if (!adapter) throw new Error(`[Handler] Adapter not found: ${adapterKey}`);
 
-  return async (chatId: string, text: string, messageId: string, senderId: string) => {
+  return async (
+    chatId: string,
+    text: string,
+    messageId: string,
+    senderId: string,
+    parts?: Array<TextPartInput | FilePartInput>
+  ) => {
     console.log(`[Bridge] 📥 [${adapterKey}] Incoming: "${text}" chat=${chatId}`);
 
     const slash = parseSlashCommand(text);
     const cacheKey = `${adapterKey}:${chatId}`;
+    const rawCommand = slash?.command?.toLowerCase();
     const normalizedCommand =
-      slash?.command === 'resume' || slash?.command === 'continue'
+      rawCommand === 'resume' || rawCommand === 'continue'
         ? 'sessions'
-        : slash?.command === 'summarize'
+        : rawCommand === 'summarize'
         ? 'compact'
-        : slash?.command === 'clear'
+        : rawCommand === 'clear'
         ? 'new'
-        : slash?.command;
+        : rawCommand;
     const targetSessionId =
       normalizedCommand === 'sessions' && slash?.arguments
         ? slash.arguments.trim().split(/\s+/)[0]
@@ -442,6 +453,7 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
           lines.push('/models - 查看可用模型');
           lines.push('/new - 新建会话并切换');
           lines.push('/sessions - 列出会话（用 /sessions <id> 或 /sessions <序号> 切换）');
+          lines.push('/maxFileSize <xmb> - 设置上传文件大小限制（默认10MB）');
           lines.push('/share - 分享当前会话');
           lines.push('/unshare - 取消分享');
           lines.push('/compact - 压缩/总结当前会话');
@@ -491,6 +503,23 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
           });
 
           await sendCommandMessage(lines.join('\n'));
+          return;
+        }
+
+        if (normalizedCommand === 'maxfilesize') {
+          const current = chatMaxFileSizeMb.get(chatId) ?? DEFAULT_MAX_FILE_MB;
+          if (!slash.arguments) {
+            await sendCommandMessage(`当前文件大小限制：${current}MB`);
+            return;
+          }
+          const m = slash.arguments.trim().match(/(\d+(?:\.\d+)?)/);
+          const value = m ? Number(m[1]) : NaN;
+          if (!Number.isFinite(value) || value <= 0) {
+            await sendCommandMessage('❌ 请输入有效数值，例如 /maxFileSize 10');
+            return;
+          }
+          chatMaxFileSizeMb.set(chatId, value);
+          await sendCommandMessage(`✅ 已设置文件大小限制：${value}MB`);
           return;
         }
 
@@ -648,9 +677,18 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
       sessionToCtx.set(sessionId, { chatId, senderId });
 
       const agent = chatAgent.get(cacheKey);
+      const partList: Array<TextPartInput | FilePartInput> = [];
+      if (text && text.trim()) {
+        partList.push({ type: 'text', text });
+      }
+      if (parts && parts.length > 0) {
+        partList.push(...parts);
+      }
+      if (partList.length === 0) return;
+
       await api.session.prompt({
         path: { id: sessionId },
-        body: { parts: [{ type: 'text', text }], ...(agent ? { agent } : {}) },
+        body: { parts: partList, ...(agent ? { agent } : {}) },
       });
 
       console.log(`[Bridge] [${adapterKey}] [Session: ${sessionId}] 🚀 Prompt Sent.`);
