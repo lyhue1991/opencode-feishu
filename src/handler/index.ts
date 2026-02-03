@@ -3,6 +3,7 @@ import type { FilePartInput, OpencodeClient, TextPartInput } from '@opencode-ai/
 import type { BridgeAdapter } from '../types';
 import { LOADING_EMOJI } from '../constants';
 import { AdapterMux } from './mux';
+import { handleSlashCommand } from './command';
 
 import {
   simpleHash,
@@ -13,7 +14,7 @@ import {
   shouldFlushNow,
 } from '../bridge/buffer';
 
-import { DEFAULT_MAX_FILE_MB, parseSlashCommand, sleep, globalState } from '../utils';
+import { ERROR_HEADER, parseSlashCommand, sleep, globalState } from '../utils';
 
 type SessionContext = { chatId: string; senderId: string };
 
@@ -28,7 +29,10 @@ const chatSessionList = new Map<string, Array<{ id: string; title: string }>>();
 const chatAgentList = new Map<string, Array<{ id: string; name: string }>>();
 const chatMaxFileSizeMb: Map<string, number> =
   globalState.__bridge_max_file_size || new Map<string, number>();
+const chatMaxFileRetry: Map<string, number> =
+  globalState.__bridge_max_file_retry || new Map<string, number>();
 globalState.__bridge_max_file_size = chatMaxFileSizeMb;
+globalState.__bridge_max_file_retry = chatMaxFileRetry;
 
 let isListenerStarted = false;
 let shouldStopListener = false;
@@ -306,6 +310,7 @@ export function stopGlobalEventListener() {
   chatSessionList.clear();
   chatAgentList.clear();
   chatMaxFileSizeMb.clear();
+  chatMaxFileRetry.clear();
 }
 
 /**
@@ -344,18 +349,6 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
         ? slash.arguments.trim().split(/\s+/)[0]
         : null;
     const shouldCreateNew = normalizedCommand === 'new';
-    const unsupportedCommands = new Set([
-      'connect',
-      'details',
-      'editor',
-      'export',
-      'exit',
-      'quit',
-      'q',
-      'theme',
-      'themes',
-      'thinking',
-    ]);
 
     if (!slash && text.trim().toLowerCase() === 'ping') {
       await adapter.sendMessage(chatId, 'Pong! ⚡️');
@@ -373,7 +366,7 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
         const uniqueTitle = `[${adapterKey}] Chat ${chatId.slice(
           -4
         )} [${new Date().toLocaleTimeString()}]`;
-          const res = await api.session.create({ body: { title: uniqueTitle } });
+        const res = await api.session.create({ body: { title: uniqueTitle } });
         const sessionId = (res as any)?.data?.id;
         if (sessionId) {
           sessionCache.set(cacheKey, sessionId);
@@ -397,6 +390,14 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
         await adapter.sendMessage(chatId, `## Command\n${content}`);
       };
 
+      const sendErrorMessage = async (content: string) => {
+        await adapter.sendMessage(chatId, `${ERROR_HEADER}\n${content}`);
+      };
+
+      globalState.__bridge_send_error_message = async (cId: string, content: string) => {
+        await adapter.sendMessage(cId, `${ERROR_HEADER}\n${content}`);
+      };
+
       const sendUnsupported = async () => {
         await sendCommandMessage(`❌ 命令 /${slash?.command} 暂不支持在聊天中使用。`);
       };
@@ -412,263 +413,34 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
         }
       };
 
-      const resolveAgentName = async (
-        name: string
-      ): Promise<{ id: string; name: string } | null> => {
-        try {
-          const res = await api.app.agents();
-          const data = (res as any)?.data ?? res;
-          const list = Array.isArray(data) ? data : [];
-          if (list.length === 0) return null;
-          const lower = name.toLowerCase();
-
-          const exact = list.find(
-            (a: any) => a?.name === name || a?.id === name
-          );
-          if (exact) return { id: exact.id, name: exact.name };
-
-          const fuzzy = list.find(
-            (a: any) =>
-              String(a?.name || '').toLowerCase().includes(lower) ||
-              String(a?.id || '').toLowerCase().includes(lower)
-          );
-          if (fuzzy) return { id: fuzzy.id, name: fuzzy.name };
-
-          return null;
-        } catch {
-          return null;
-        }
-      };
-
       if (slash) {
-        if (normalizedCommand === 'help') {
-          const res = await api.command.list();
-          const data = (res as any)?.data ?? res;
-          const list = Array.isArray(data) ? data : [];
-
-          const lines: string[] = [];
-          lines.push('## Command');
-          lines.push('### Help');
-          lines.push('/help - 查看命令与用法');
-          lines.push('/models - 查看可用模型');
-          lines.push('/new - 新建会话并切换');
-          lines.push('/sessions - 列出会话（用 /sessions <id> 或 /sessions <序号> 切换）');
-          lines.push('/maxFileSize <xmb> - 设置上传文件大小限制（默认10MB）');
-          lines.push('/share - 分享当前会话');
-          lines.push('/unshare - 取消分享');
-          lines.push('/compact - 压缩/总结当前会话');
-          lines.push('/init - 初始化项目（生成 AGENTS.md）');
-          lines.push('/agent <name> - 切换 Agent');
-
-          if (list.length > 0) {
-            lines.push('### Custom Commands');
-            list.forEach((cmd: any) => {
-              const desc = cmd?.description ? `- ${cmd.description}` : '';
-              lines.push(`/${cmd?.name} ${desc}`);
-            });
-          }
-          await sendCommandMessage(lines.join('\n'));
-          return;
-        }
-
-        if (normalizedCommand === 'models') {
-          const res = await api.config.providers();
-          const data = (res as any)?.data ?? res;
-          const providers = data?.providers ?? [];
-          const defaults = data?.default ?? {};
-
-          if (!Array.isArray(providers) || providers.length === 0) {
-            await sendCommandMessage('暂无可用模型信息。');
-            return;
-          }
-
-          const lines: string[] = [];
-          lines.push('## Command');
-          lines.push('### Models');
-
-          const defaultLines: string[] = [];
-          Object.keys(defaults || {}).forEach(key => {
-            defaultLines.push(`${key} -> ${defaults[key]}`);
-          });
-          if (defaultLines.length > 0) {
-            lines.push('Default:');
-            defaultLines.forEach(l => lines.push(l));
-          }
-
-          providers.forEach((p: any) => {
-            const id = p?.id || p?.name || 'unknown';
-            const models = p?.models ? Object.keys(p.models) : [];
-            lines.push(`${p?.name || id} (${id})`);
-            lines.push(`Models: ${models.join(', ') || '-'}`);
-          });
-
-          await sendCommandMessage(lines.join('\n'));
-          return;
-        }
-
-        if (normalizedCommand === 'maxfilesize') {
-          const current = chatMaxFileSizeMb.get(chatId) ?? DEFAULT_MAX_FILE_MB;
-          if (!slash.arguments) {
-            await sendCommandMessage(`当前文件大小限制：${current}MB`);
-            return;
-          }
-          const m = slash.arguments.trim().match(/(\d+(?:\.\d+)?)/);
-          const value = m ? Number(m[1]) : NaN;
-          if (!Number.isFinite(value) || value <= 0) {
-            await sendCommandMessage('❌ 请输入有效数值，例如 /maxFileSize 10');
-            return;
-          }
-          chatMaxFileSizeMb.set(chatId, value);
-          await sendCommandMessage(`✅ 已设置文件大小限制：${value}MB`);
-          return;
-        }
-
-        if (normalizedCommand === 'agent' && targetAgent) {
-          if (/^\d+$/.test(targetAgent)) {
-            const list = chatAgentList.get(cacheKey) || [];
-            const idx = Number(targetAgent) - 1;
-            if (idx < 0 || idx >= list.length) {
-              await sendCommandMessage(`❌ 无效序号: ${targetAgent}`);
-              return;
-            }
-            const agent = list[idx];
-            chatAgent.set(cacheKey, agent.name || agent.id);
-            await sendCommandMessage(`✅ 已切换 Agent: ${agent.name || agent.id}`);
-            return;
-          }
-
-          const agent = await resolveAgentName(targetAgent);
-          if (!agent) {
-            await sendCommandMessage(`❌ 未找到 Agent: ${targetAgent}`);
-            return;
-          }
-          chatAgent.set(cacheKey, agent.name || agent.id);
-          await sendCommandMessage(`✅ 已切换 Agent: ${agent.name || agent.id}`);
-          return;
-        }
-
-        if (normalizedCommand === 'agent' && !targetAgent) {
-          const res = await api.app.agents();
-          const data = (res as any)?.data ?? res;
-          const list = Array.isArray(data) ? data : [];
-          if (list.length === 0) {
-            await sendCommandMessage('暂无可用 Agent。');
-            return;
-          }
-          const agents = list.slice(0, 20).map((a: any) => ({
-            id: a?.id,
-            name: a?.name || a?.id,
-          }));
-          chatAgentList.set(cacheKey, agents);
-          const lines = ['## Command', '### Agents', '请输入 /agent <序号> 切换：'];
-          agents.forEach((a, idx) => {
-            lines.push(`${idx + 1}. ${a.name}`);
-          });
-          await sendCommandMessage(lines.join('\n'));
-          return;
-        }
-
-        if (normalizedCommand === 'sessions' && !targetSessionId) {
-          const res = await api.session.list({});
-          const data = (res as any)?.data ?? res;
-          const sessions = Array.isArray(data) ? data : [];
-          if (sessions.length === 0) {
-            await sendCommandMessage('暂无会话，请使用 /new 创建。');
-            return;
-          }
-          const list = sessions.slice(0, 20).map((s: any) => ({
-            id: s?.id,
-            title: s?.title || 'Untitled',
-          }));
-          chatSessionList.set(cacheKey, list);
-          const lines = ['## Command', '### Sessions', '请输入 /sessions <序号> 切换：'];
-          list.forEach((s, idx) => {
-            lines.push(`${idx + 1}. ${s.title}`);
-          });
-          await sendCommandMessage(lines.join('\n'));
-          return;
-        }
-
-        if (unsupportedCommands.has(normalizedCommand || '')) {
-          await sendUnsupported();
-          return;
-        }
-
-        if (shouldCreateNew) {
-          const sessionId = await createNewSession();
-          console.log(`[Bridge] [${adapterKey}] [Session: ${sessionId}] 🆕 New Session Bound.`);
-          if (sessionId) {
-            await sendCommandMessage(`✅ 已切换到新会话: ${sessionId}`);
-          } else {
-            await sendCommandMessage('❌ 新会话创建失败，请稍后重试。');
-          }
-          return;
-        }
-
-        const sessionId = await ensureSession();
-
-        // ✅ 绑定：这个 session 的输出回到哪个平台
-        sessionToAdapterKey.set(sessionId, adapterKey);
-        sessionToCtx.set(sessionId, { chatId, senderId });
-
-        if (normalizedCommand === 'sessions' && targetSessionId) {
-          let targetId = targetSessionId;
-          if (/^\d+$/.test(targetSessionId)) {
-            const list = chatSessionList.get(cacheKey) || [];
-            const idx = Number(targetSessionId) - 1;
-            if (idx >= 0 && idx < list.length) {
-              targetId = list[idx].id;
-            } else {
-              await sendCommandMessage(`❌ 无效序号: ${targetSessionId}`);
-              return;
-            }
-          }
-          sessionCache.set(cacheKey, targetId);
-          sessionToAdapterKey.set(targetId, adapterKey);
-          sessionToCtx.set(targetId, { chatId, senderId });
-          chatAgent.delete(cacheKey);
-          await sendCommandMessage(`✅ 已切换到会话: ${targetId}`);
-          return;
-        }
-
-        if (normalizedCommand === 'share') {
-          const res = await api.session.share({ path: { id: sessionId } });
-          const data = (res as any)?.data ?? res;
-          const url = data?.share?.url;
-          await sendCommandMessage(url ? `✅ 分享链接: ${url}` : '✅ 已分享会话。');
-          return;
-        }
-
-        if (normalizedCommand === 'unshare') {
-          await api.session.unshare({ path: { id: sessionId } });
-          await sendCommandMessage('✅ 已取消分享。');
-          return;
-        }
-
-        if (normalizedCommand === 'compact') {
-          await api.session.summarize({ path: { id: sessionId } });
-          await sendCommandMessage('✅ 已触发会话压缩。');
-          return;
-        }
-
-        if (normalizedCommand === 'init') {
-          await api.session.init({ path: { id: sessionId } });
-          await sendCommandMessage('✅ 已触发初始化（AGENTS.md）。');
-          return;
-        }
-
-        const isCustom = await isKnownCustomCommand(slash.command);
-        if (isCustom === false) {
-          await sendCommandMessage(`❌ 无效指令: /${slash.command}`);
-          return;
-        }
-
-        await api.session.command({
-          path: { id: sessionId },
-          body: { command: slash.command, arguments: slash.arguments },
+        const handled = await handleSlashCommand({
+          api,
+          adapterKey,
+          chatId,
+          senderId,
+          cacheKey,
+          slash,
+          normalizedCommand: normalizedCommand || '',
+          targetSessionId,
+          targetAgent,
+          shouldCreateNew,
+          sessionCache,
+          sessionToAdapterKey,
+          sessionToCtx,
+          chatAgent,
+          chatSessionList,
+          chatAgentList,
+          chatMaxFileSizeMb,
+          chatMaxFileRetry,
+          ensureSession,
+          createNewSession,
+          sendCommandMessage,
+          sendErrorMessage,
+          sendUnsupported,
+          isKnownCustomCommand,
         });
-        console.log(`[Bridge] [${adapterKey}] [Session: ${sessionId}] 🚀 Command /${slash.command} Sent.`);
-        return;
+        if (handled) return;
       }
 
       const sessionId = await ensureSession();

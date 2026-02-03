@@ -50,6 +50,7 @@ function getStatusWithEmoji(statusText: string): string {
 function parseSections(md: string) {
   const sectionMap: Record<string, string> = {
     command: '',
+    error: '',
     thinking: '',
     answer: '',
     tools: '',
@@ -86,6 +87,8 @@ function parseSections(md: string) {
 
     if (rawTitle.includes('think') || rawTitle.includes('思')) {
       sectionMap.thinking += content;
+    } else if (rawTitle.includes('error') || rawTitle.includes('错误')) {
+      sectionMap.error += content;
     } else if (rawTitle.includes('command') || rawTitle.includes('命令')) {
       sectionMap.command += content;
     } else if (
@@ -109,6 +112,7 @@ function parseSections(md: string) {
   if (
     !sectionMap.answer &&
     !sectionMap.command &&
+    !sectionMap.error &&
     !sectionMap.thinking &&
     !sectionMap.status
   ) {
@@ -207,14 +211,23 @@ function renderModelsCommand(command: string): any[] | null {
 }
 
 export function renderFeishuCardFromHandlerMarkdown(handlerMarkdown: string): string {
-  const { command, thinking, answer, tools, status } = parseSections(handlerMarkdown);
+  const { command, error, thinking, answer, tools, status } = parseSections(handlerMarkdown);
 
   const elements: any[] = [];
 
   let headerTitle = '🤖 AI Assistant';
   let headerColor = 'blue';
 
-  if (trimSafe(command)) {
+  const hasOnlyStatus =
+    !trimSafe(command) && !trimSafe(answer) && !trimSafe(tools) && !trimSafe(thinking);
+
+  if (trimSafe(error)) {
+    headerTitle = '🚨 Error';
+    headerColor = 'red';
+  } else if (hasOnlyStatus && trimSafe(status)) {
+    headerTitle = '⏳ Loading';
+    headerColor = 'orange';
+  } else if (trimSafe(command)) {
     headerTitle = '🧭 Command';
     headerColor = 'green';
   } else if (trimSafe(answer)) {
@@ -237,8 +250,19 @@ export function renderFeishuCardFromHandlerMarkdown(handlerMarkdown: string): st
     elements.push(collapsiblePanel('⚙️ Execution', tools, false));
   }
 
+  const finalError = trimSafe(error);
   const finalCommand = trimSafe(command);
   const finalAnswer = trimSafe(answer);
+
+  if (finalError) {
+    elements.push({
+      tag: 'div',
+      text: {
+        tag: 'lark_md',
+        content: finalError,
+      },
+    });
+  }
 
   if (finalCommand) {
     const helpElements = renderHelpCommand(finalCommand);

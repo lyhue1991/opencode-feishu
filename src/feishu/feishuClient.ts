@@ -5,7 +5,13 @@ import * as crypto from 'crypto';
 
 import type { FeishuConfig, IncomingMessageHandler } from '../types';
 import type { FilePartInput } from '@opencode-ai/sdk';
-import { DEFAULT_MAX_FILE_MB, globalState, sleep } from '../utils';
+import {
+  DEFAULT_MAX_FILE_MB,
+  DEFAULT_MAX_FILE_RETRY,
+  ERROR_HEADER,
+  globalState,
+  sleep,
+} from '../utils';
 
 function clip(s: string, n = 2000) {
   if (!s) return '';
@@ -136,7 +142,17 @@ export class FeishuClient {
       const maxBytes = Math.floor(maxSizeMb * 1024 * 1024);
 
       let res: any;
-      const maxRetry = 2;
+      const maxRetry =
+        (globalState.__bridge_max_file_retry?.get?.(chatId) as number) ??
+        DEFAULT_MAX_FILE_RETRY;
+      let progressMsgId: string | null = null;
+      if (maxRetry > 0) {
+        progressMsgId = await this.sendMessage(
+          chatId,
+          `## Status\n⏳ 正在处理 ${msgType} 文件：${fileName}`
+        );
+        await sleep(500);
+      }
       for (let attempt = 0; attempt <= maxRetry; attempt++) {
         try {
           res = await this.apiClient.im.messageResource.get(
@@ -164,6 +180,11 @@ export class FeishuClient {
         console.warn(
           `[Feishu] ⚠️ Resource too large by header: ${contentLength} bytes > ${maxBytes}`
         );
+        if (progressMsgId) {
+          await this.apiClient.im.message
+            .delete({ path: { message_id: progressMsgId } })
+            .catch(() => {});
+        }
         return null;
       }
       const stream = res.getReadableStream();
@@ -176,6 +197,11 @@ export class FeishuClient {
           )}MB），当前限制 ${maxSizeMb}MB。可用 /maxFileSize <xmb> 调整。`
         );
         console.warn(`[Feishu] ⚠️ Resource too large by body: ${buf.length} bytes > ${maxBytes}`);
+        if (progressMsgId) {
+          await this.apiClient.im.message
+            .delete({ path: { message_id: progressMsgId } })
+            .catch(() => {});
+        }
         return null;
       }
       const mime = (res.headers?.['content-type'] as string) || 'application/octet-stream';
@@ -183,6 +209,11 @@ export class FeishuClient {
       console.log(
         `[Feishu] ✅ Download resource ok: size=${buf.length} bytes mime=${mime}`
       );
+      if (progressMsgId) {
+        await this.apiClient.im.message
+          .delete({ path: { message_id: progressMsgId } })
+          .catch(() => {});
+      }
       return {
         type: 'file',
         mime,
@@ -197,7 +228,19 @@ export class FeishuClient {
         fileName,
         error: e,
       });
-      await this.sendMessage(chatId, '❌ 资源下载失败，请稍后重试。');
+      if (progressMsgId) {
+        await this.apiClient.im.message
+          .delete({ path: { message_id: progressMsgId } })
+          .catch(() => {});
+      }
+      const sendError = globalState.__bridge_send_error_message as
+        | ((chatId: string, content: string) => Promise<void>)
+        | undefined;
+      if (sendError) {
+        await sendError(chatId, '资源下载失败，请稍后重试。');
+      } else {
+        await this.sendMessage(chatId, `${ERROR_HEADER}\n资源下载失败，请稍后重试。`);
+      }
       return null;
     }
   }

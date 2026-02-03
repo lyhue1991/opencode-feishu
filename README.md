@@ -89,6 +89,7 @@ From the official TUI docs, the built-in commands include:
 * `/undo`
 * `/unshare`
 * `/maxFileSize`
+* `/maxFileRetry`
 
 ### Bridge-Handled Commands
 
@@ -99,6 +100,7 @@ These are implemented directly against OpenCode APIs:
 * `/new` → create and bind to a new session
 * `/sessions` → list sessions (reply with `/sessions <id>` to bind)
 * `/maxFileSize <xmb>` → set upload file size limit (default 10MB)
+* `/maxFileRetry <n>` → set resource download retry count (default 3)
 * `/share` / `/unshare`
 * `/compact` (alias `/summarize`)
 * `/init`

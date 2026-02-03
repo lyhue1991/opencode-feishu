@@ -80,6 +80,7 @@ UI 相关命令（主题/编辑器/退出等）**不适合聊天场景**，因�
 * `/undo`
 * `/unshare`
 * `/maxFileSize`
+* `/maxFileRetry`
 
 ### 已适配的命令
 
@@ -90,6 +91,7 @@ UI 相关命令（主题/编辑器/退出等）**不适合聊天场景**，因�
 * `/new` → 创建并绑定新会话
 * `/sessions` → 列出会话（回复 `/sessions <id>` 切换）
 * `/maxFileSize <xmb>` → 设置上传文件大小限制（默认 10MB）
+* `/maxFileRetry <n>` → 设置资源下载重试次数（默认 3）
 * `/share` / `/unshare`
 * `/compact`（别名 `/summarize`）
 * `/init`

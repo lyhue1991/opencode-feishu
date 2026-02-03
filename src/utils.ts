@@ -6,6 +6,8 @@ export function sleep(ms: number) {
 }
 
 export const DEFAULT_MAX_FILE_MB = 10;
+export const DEFAULT_MAX_FILE_RETRY = 3;
+export const ERROR_HEADER = '## Error';
 
 export function parseSlashCommand(text: string): { command: string; arguments: string } | null {
   const trimmed = text.trim();
