@@ -132,6 +132,7 @@ export class FeishuClient {
     const fileName =
       content.file_name || content.name || content.fileName || `${msgType}-${fileKey}`;
 
+    let progressMsgId: string | null = null;
     try {
       console.log(
         `[Feishu] 📦 Download resource start: msg=${messageId} type=${msgType} key=${fileKey} name=${fileName}`
@@ -145,7 +146,6 @@ export class FeishuClient {
       const maxRetry =
         (globalState.__bridge_max_file_retry?.get?.(chatId) as number) ??
         DEFAULT_MAX_FILE_RETRY;
-      let progressMsgId: string | null = null;
       if (maxRetry > 0) {
         progressMsgId = await this.sendMessage(
           chatId,

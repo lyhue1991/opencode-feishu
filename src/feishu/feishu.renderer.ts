@@ -54,6 +54,7 @@ function parseSections(md: string) {
     thinking: '',
     answer: '',
     tools: '',
+    files: '',
     status: '',
   };
 
@@ -97,6 +98,8 @@ function parseSections(md: string) {
       rawTitle.includes('工具')
     ) {
       sectionMap.tools += content;
+    } else if (rawTitle.includes('file') || rawTitle.includes('文件')) {
+      sectionMap.files += content;
     } else if (rawTitle.includes('status') || rawTitle.includes('状态')) {
       sectionMap.status += content;
     } else if (rawTitle.includes('answer') || rawTitle.includes('回答')) {
@@ -211,7 +214,8 @@ function renderModelsCommand(command: string): any[] | null {
 }
 
 export function renderFeishuCardFromHandlerMarkdown(handlerMarkdown: string): string {
-  const { command, error, thinking, answer, tools, status } = parseSections(handlerMarkdown);
+  const { command, error, thinking, answer, tools, files, status } =
+    parseSections(handlerMarkdown);
 
   const elements: any[] = [];
 
@@ -248,6 +252,11 @@ export function renderFeishuCardFromHandlerMarkdown(handlerMarkdown: string): st
   if (tools.trim()) {
     if (elements.length > 0) elements.push({ tag: 'div', text: { tag: 'lark_md', content: ' ' } });
     elements.push(collapsiblePanel('⚙️ Execution', tools, false));
+  }
+
+  if (files.trim()) {
+    if (elements.length > 0) elements.push({ tag: 'div', text: { tag: 'lark_md', content: ' ' } });
+    elements.push(collapsiblePanel('🖼️ Files', files, false));
   }
 
   const finalError = trimSafe(error);

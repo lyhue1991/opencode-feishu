@@ -47,6 +47,14 @@ function isApiError(err: any): boolean {
   return err?.name === 'APIError';
 }
 
+function formatUserError(err: any): string {
+  const msg = String(err?.message || err?.data?.message || 'unknown error');
+  if (msg.toLowerCase().includes('socket connection was closed unexpectedly')) {
+    return '网络异常，资源下载失败，请稍后重试。';
+  }
+  return msg.split('\n')[0].slice(0, 200);
+}
+
 async function safeEditWithRetry(
   adapter: BridgeAdapter,
   chatId: string,
@@ -466,7 +474,7 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
       console.log(`[Bridge] [${adapterKey}] [Session: ${sessionId}] 🚀 Prompt Sent.`);
     } catch (err: any) {
       console.error(`[Bridge] ❌ [${adapterKey}] Error:`, err);
-      await adapter.sendMessage(chatId, `❌ Error: ${err?.message || String(err)}`);
+      await adapter.sendMessage(chatId, `${ERROR_HEADER}\n${formatUserError(err)}`);
     } finally {
       if (messageId && reactionId && adapter.removeReaction) {
         await adapter.removeReaction(messageId, reactionId).catch(() => {});
