@@ -38,6 +38,16 @@ function isApiError(err: any): boolean {
   return err?.name === 'APIError';
 }
 
+async function syncSessionToTui(api: OpencodeClient, sessionId: string) {
+  const selectSession = (api as any)?.tui?.selectSession;
+  if (typeof selectSession !== 'function') return;
+  try {
+    await selectSession({ body: { sessionID: sessionId } });
+  } catch {
+    // ignore if unsupported
+  }
+}
+
 async function safeEditWithRetry(
   adapter: BridgeAdapter,
   chatId: string,
@@ -378,15 +388,26 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
           const data = (res as any)?.data ?? res;
           const list = Array.isArray(data) ? data : [];
 
-          const lines = [
-            '🧰 可用命令（聊天桥适配）：',
-            '/help /models /new /sessions /share /unshare /compact /init /agent',
-          ];
+          const lines: string[] = [];
+          lines.push('🧰 可用命令（聊天桥适配）');
+          lines.push('────────────────────────');
+          lines.push('/help  - 查看命令与用法');
+          lines.push('/models  - 查看可用模型');
+          lines.push('/new  - 新建会话并切换');
+          lines.push('/sessions  - 列出会话（用 /sessions <id> 切换）');
+          lines.push('/share  - 分享当前会话');
+          lines.push('/unshare  - 取消分享');
+          lines.push('/compact  - 压缩/总结当前会话');
+          lines.push('/init  - 初始化项目（生成 AGENTS.md）');
+          lines.push('/agent <name>  - 切换 Agent');
+
           if (list.length > 0) {
-            lines.push('', '🧩 自定义命令（command.list）：');
+            lines.push('────────────────────────');
+            lines.push('🧩 自定义命令');
             list.forEach((cmd: any) => {
-              const desc = cmd?.description ? ` - ${cmd.description}` : '';
-              lines.push(`/${cmd?.name}${desc}`);
+              const desc = cmd?.description ? `- ${cmd.description}` : '';
+              const tmpl = cmd?.template ? ` | ${String(cmd.template).trim()}` : '';
+              lines.push(`/${cmd?.name} ${desc}${tmpl}`);
             });
           }
           await adapter.sendMessage(chatId, lines.join('\n'));
@@ -394,19 +415,31 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
         }
 
         if (normalizedCommand === 'models') {
-          const res = await api.provider.list();
+          const res = await api.config.providers();
           const data = (res as any)?.data ?? res;
-          const providers = data?.all ?? [];
+          const providers = data?.providers ?? [];
+          const defaults = data?.default ?? {};
+
           if (!Array.isArray(providers) || providers.length === 0) {
             await adapter.sendMessage(chatId, '暂无可用模型信息。');
             return;
           }
-          const lines = ['🧠 模型列表（按 Provider）：'];
+
+          const lines: string[] = [];
+          lines.push('🧠 可用模型（配置生效）');
+          lines.push('────────────────────────');
           providers.forEach((p: any) => {
+            const id = p?.id || p?.name || 'unknown';
             const models = p?.models ? Object.keys(p.models) : [];
-            lines.push(`${p?.name || p?.id} (${p?.id})`);
-            lines.push(`Models: ${models.join(', ') || '-'}`);
+            const defaultModel = defaults?.[id];
+            lines.push(`• ${p?.name || id} (${id})`);
+            if (defaultModel) {
+              lines.push(`  Default: ${defaultModel}`);
+            }
+            lines.push(`  Models: ${models.join(', ') || '-'}`);
+            lines.push('────────────────────────');
           });
+
           await adapter.sendMessage(chatId, lines.join('\n'));
           return;
         }
@@ -443,6 +476,7 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
           const sessionId = await createNewSession();
           console.log(`[Bridge] [${adapterKey}] [Session: ${sessionId}] 🆕 New Session Bound.`);
           if (sessionId) {
+            await syncSessionToTui(api, sessionId);
             await adapter.sendMessage(chatId, `✅ 已切换到新会话: ${sessionId}`);
           } else {
             await adapter.sendMessage(chatId, '❌ 新会话创建失败，请稍后重试。');
@@ -461,6 +495,7 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
           sessionToAdapterKey.set(targetSessionId, adapterKey);
           sessionToCtx.set(targetSessionId, { chatId, senderId });
           chatAgent.delete(cacheKey);
+          await syncSessionToTui(api, targetSessionId);
           await adapter.sendMessage(chatId, `✅ 已切换到会话: ${targetSessionId}`);
           return;
         }
@@ -505,6 +540,7 @@ export const createIncomingHandler = (api: OpencodeClient, mux: AdapterMux, adap
       sessionToCtx.set(sessionId, { chatId, senderId });
 
       const agent = chatAgent.get(cacheKey);
+      await syncSessionToTui(api, sessionId);
       await api.session.prompt({
         path: { id: sessionId },
         body: { parts: [{ type: 'text', text }], ...(agent ? { agent } : {}) },
