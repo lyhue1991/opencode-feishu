@@ -4,6 +4,7 @@ import type { Config } from '@opencode-ai/sdk';
 
 import { globalState } from './src/utils';
 import { AGENT_LARK, AGENT_IMESSAGE, AGENT_TELEGRAM } from './src/constants';
+import { bridgeLogger, getBridgeLogFilePath } from './src/logger';
 
 import { AdapterMux } from './src/handler/mux';
 import { startGlobalEventListener, createIncomingHandler } from './src/handler';
@@ -41,7 +42,7 @@ function parseFeishuConfig(cfg: Config | undefined): FeishuConfig {
       : undefined;
 
   if (mode === 'webhook' && !callbackUrl) {
-    console.error(`[Plugin] Missing callback_url for ${AGENT_LARK} in webhook mode`);
+    bridgeLogger.warn(`[Plugin] Missing callback_url for ${AGENT_LARK} in webhook mode`);
   }
 
   if (!app_id || !app_secret) {
@@ -59,7 +60,7 @@ function parseFeishuConfig(cfg: Config | undefined): FeishuConfig {
 
 export const BridgePlugin: Plugin = async ctx => {
   const { client } = ctx;
-  console.log('[Plugin] BridgePlugin entry initializing...');
+  bridgeLogger.info(`[Plugin] bridge entry initializing logFile=${getBridgeLogFilePath()}`);
 
   const bootstrap = async () => {
     try {
@@ -79,17 +80,17 @@ export const BridgePlugin: Plugin = async ctx => {
       }
 
       if (isEnabled(cfg, AGENT_IMESSAGE)) {
-        console.log('[Plugin] imessage-bridge enabled (not implemented yet).');
+        bridgeLogger.info('[Plugin] imessage-bridge enabled (not implemented yet).');
         // TODO: mux.register(AGENT_IMESSAGE, new IMessageAdapter(...))
       }
 
       if (isEnabled(cfg, AGENT_TELEGRAM)) {
-        console.log('[Plugin] telegram-bridge enabled (not implemented yet).');
+        bridgeLogger.info('[Plugin] telegram-bridge enabled (not implemented yet).');
         // TODO: mux.register(AGENT_TELEGRAM, new TelegramAdapter(...))
       }
 
       if (adaptersToStart.length === 0) {
-        console.log('[Plugin] No bridge enabled.');
+        bridgeLogger.info('[Plugin] no bridge enabled');
         return;
       }
 
@@ -98,23 +99,23 @@ export const BridgePlugin: Plugin = async ctx => {
         mux.register(key, adapter);
         const incoming = createIncomingHandler(client, mux, key);
         await adapter.start(incoming);
-        console.log(`[Plugin] ✅ Started adapter: ${key}`);
+        bridgeLogger.info(`[Plugin] started adapter=${key}`);
       }
 
       // 全局 listener 只启动一次（mux）
       if (!globalState.__bridge_listener_started) {
         globalState.__bridge_listener_started = true;
         startGlobalEventListener(client, mux).catch(err => {
-          console.error('[Plugin] ❌ startGlobalEventListener failed:', err);
+          bridgeLogger.error('[Plugin] startGlobalEventListener failed', err);
           globalState.__bridge_listener_started = false;
         });
       } else {
-        console.log('[Plugin] Global listener already started.');
+        bridgeLogger.info('[Plugin] global listener already started');
       }
 
-      console.log('[Plugin] ✅ BridgePlugin ready.');
+      bridgeLogger.info('[Plugin] BridgePlugin ready');
     } catch (e) {
-      console.error('[Plugin] Bootstrap error:', e);
+      bridgeLogger.error('[Plugin] bootstrap error', e);
     }
   };
 

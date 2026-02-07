@@ -1,7 +1,8 @@
 // index.telegram.ts (telegram-bridge placeholder)
 import type { Plugin } from '@opencode-ai/plugin';
+import { bridgeLogger } from './src/logger';
 
 export const BridgePlugin: Plugin = async () => {
-  console.log('[Plugin] telegram-bridge is not implemented yet.');
+  bridgeLogger.info('[Plugin] telegram-bridge is not implemented yet.');
   return {};
 };

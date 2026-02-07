@@ -2,6 +2,7 @@ import type { BridgeAdapter } from '../types';
 import { simpleHash } from '../bridge/buffer';
 import type { MessageBuffer } from '../bridge/buffer';
 import { sleep } from '../utils';
+import { bridgeLogger } from '../logger';
 
 type SessionContext = { chatId: string; senderId: string };
 
@@ -13,20 +14,20 @@ export async function safeEditWithRetry(
 ): Promise<string | null> {
   const ok = await adapter.editMessage(chatId, platformMsgId, content);
   if (ok) return platformMsgId;
-  console.log(
+  bridgeLogger.warn(
     `[BridgeFlowDebug] edit failed first try chat=${chatId} msg=${platformMsgId} contentLen=${content.length}`,
   );
   await sleep(500);
   const retryOk = await adapter.editMessage(chatId, platformMsgId, content);
   if (retryOk) return platformMsgId;
-  console.log(
+  bridgeLogger.warn(
     `[BridgeFlowDebug] edit failed retry chat=${chatId} msg=${platformMsgId} fallback=sendMessage contentLen=${content.length}`,
   );
 
   // Fallback for platforms that don't support edit semantics well.
   const sent = await adapter.sendMessage(chatId, content);
   if (sent) {
-    console.log(
+    bridgeLogger.info(
       `[BridgeFlowDebug] fallback sendMessage created new msg chat=${chatId} prevMsg=${platformMsgId} newMsg=${sent}`,
     );
   }

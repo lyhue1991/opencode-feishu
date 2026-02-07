@@ -8,6 +8,7 @@ import type {
 } from '@opencode-ai/sdk';
 import type { BridgeAdapter } from '../types';
 import type { AdapterMux } from './mux';
+import { bridgeLogger } from '../logger';
 import {
   simpleHash,
   getOrInitBuffer,
@@ -81,7 +82,7 @@ async function finalizeExecutionCardBeforeSplit(
   if (!buffer?.platformMsgId) return;
   const finalContent = buildFinalizedExecutionContent(buffer);
   await safeEditWithRetry(adapter, chatId, buffer.platformMsgId, finalContent).catch(() => {});
-  console.log(`${FLOW_LOG_PREFIX} execution finalized chat=${chatId}`);
+  bridgeLogger.info(`${FLOW_LOG_PREFIX} execution-finalized chat=${chatId}`);
 }
 
 async function flushMessage(
@@ -202,11 +203,11 @@ async function handleMessagePartUpdatedEvent(
     const nextBuf = getOrInitBuffer(deps.msgBuffers, messageId);
     if (prevBuf && shouldCarryPlatformMessageAcrossAssistantMessages(prevBuf)) {
       carryPlatformMessage(prevBuf, nextBuf);
-      console.log(
-        `${FLOW_LOG_PREFIX} carry execution message sid=${sessionId} prev=${prev} next=${messageId}`,
+      bridgeLogger.info(
+        `${FLOW_LOG_PREFIX} carry-execution sid=${sessionId} prev=${prev} next=${messageId}`,
       );
     } else {
-      console.log(
+      bridgeLogger.debug(
         `[BridgeFlowDebug] do-not-carry sid=${sessionId} prev=${prev} next=${messageId} prevPlatform=${prevBuf?.platformMsgId || '-'} prevTextLen=${(prevBuf?.text || '').length} prevReasoningLen=${(prevBuf?.reasoning || '').length} prevTools=${prevBuf?.tools?.size || 0}`,
       );
       markStatus(deps.msgBuffers, prev, 'done');
@@ -223,13 +224,13 @@ async function handleMessagePartUpdatedEvent(
     buffer.selectedModel = selectedModel;
   }
   applyPartToBuffer(buffer, part, delta);
-  console.log(
+  bridgeLogger.debug(
     `[BridgeFlowDebug] part-applied sid=${sessionId} mid=${messageId} part=${part.type} textLen=${buffer.text.length} reasoningLen=${buffer.reasoning.length} tools=${buffer.tools.size} status=${buffer.status} note="${buffer.statusNote || ''}" hasPlatform=${!!buffer.platformMsgId}`,
   );
 
   if (shouldSplitOutFinalAnswer(buffer)) {
-    console.log(
-      `${FLOW_LOG_PREFIX} split final answer sid=${sessionId} mid=${messageId} textLen=${buffer.text.length}`,
+    bridgeLogger.info(
+      `${FLOW_LOG_PREFIX} split-final-answer sid=${sessionId} mid=${messageId} textLen=${buffer.text.length}`,
     );
     await finalizeExecutionCardBeforeSplit(adapter, ctx.chatId, buffer);
     splitFinalAnswerFromExecution(buffer);
@@ -240,12 +241,14 @@ async function handleMessagePartUpdatedEvent(
   }
 
   if (!shouldFlushNow(buffer)) {
-    console.log(`[BridgeFlowDebug] skip-flush sid=${sessionId} mid=${messageId} reason=throttle`);
+    bridgeLogger.debug(
+      `[BridgeFlowDebug] skip-flush sid=${sessionId} mid=${messageId} reason=throttle`,
+    );
     return;
   }
   const hasAny = buffer.reasoning.length > 0 || buffer.text.length > 0 || buffer.tools.size > 0;
   if (!hasAny) {
-    console.log(`[BridgeFlowDebug] skip-flush sid=${sessionId} mid=${messageId} reason=empty`);
+    bridgeLogger.debug(`[BridgeFlowDebug] skip-flush sid=${sessionId} mid=${messageId} reason=empty`);
     return;
   }
 
@@ -254,13 +257,15 @@ async function handleMessagePartUpdatedEvent(
   const display = buildPlatformDisplay(buffer);
   const hash = simpleHash(display);
   if (buffer.platformMsgId && hash === buffer.lastDisplayHash) {
-    console.log(`[BridgeFlowDebug] skip-flush sid=${sessionId} mid=${messageId} reason=same-hash`);
+    bridgeLogger.debug(
+      `[BridgeFlowDebug] skip-flush sid=${sessionId} mid=${messageId} reason=same-hash`,
+    );
     return;
   }
 
   if (!buffer.platformMsgId) {
-    console.log(
-      `${FLOW_LOG_PREFIX} send new message sid=${sessionId} mid=${messageId} tools=${buffer.tools.size}`,
+    bridgeLogger.info(
+      `${FLOW_LOG_PREFIX} send-new sid=${sessionId} mid=${messageId} tools=${buffer.tools.size}`,
     );
     const sent = await adapter.sendMessage(ctx.chatId, display);
     if (sent) {
@@ -272,13 +277,13 @@ async function handleMessagePartUpdatedEvent(
 
   const ok = await safeEditWithRetry(adapter, ctx.chatId, buffer.platformMsgId, display);
   if (ok) {
-    console.log(
+    bridgeLogger.debug(
       `[BridgeFlowDebug] edited sid=${sessionId} mid=${messageId} msg=${ok} contentLen=${display.length}`,
     );
     buffer.platformMsgId = ok;
     buffer.lastDisplayHash = hash;
   } else {
-    console.log(
+    bridgeLogger.warn(
       `[BridgeFlowDebug] edit-failed sid=${sessionId} mid=${messageId} msg=${buffer.platformMsgId} contentLen=${display.length}`,
     );
   }
@@ -309,6 +314,13 @@ async function handleSessionErrorEvent(
       (err?.data?.message as string) || err?.name || 'session.error',
     );
   }
+  const errMsg =
+    (err as { data?: { message?: string } })?.data?.message ||
+    (err as { message?: string })?.message ||
+    '-';
+  bridgeLogger.warn(
+    `[BridgeFlow] session-error sid=${sid} mid=${mid} name=${err?.name || '-'} msg=${errMsg}`,
+  );
   await flushMessage(adapter, ctx.chatId, mid, deps.msgBuffers, true);
 }
 
@@ -348,20 +360,20 @@ export async function startGlobalEventListenerWithDeps(
   deps: EventFlowDeps,
 ) {
   if (deps.listenerState.isListenerStarted) {
-    console.log('[BridgeFlowDebug] listener already started, skip');
+    bridgeLogger.debug('[BridgeFlowDebug] listener already started, skip');
     return;
   }
   deps.listenerState.isListenerStarted = true;
   deps.listenerState.shouldStopListener = false;
 
-  console.log('[Listener] 🎧 Starting Global Event Subscription (MUX)...');
+  bridgeLogger.info('[Listener] starting global event subscription (MUX)');
 
   let retryCount = 0;
 
   const connect = async () => {
     try {
       const events = await api.event.subscribe();
-      console.log('[Listener] ✅ Connected to OpenCode Event Stream');
+      bridgeLogger.info('[Listener] connected to OpenCode event stream');
       retryCount = 0;
 
       for await (const event of events.stream) {
@@ -376,7 +388,7 @@ export async function startGlobalEventListenerWithDeps(
         if (e.type === 'message.part.updated') {
           const pe = event as EventMessagePartUpdated;
           const p = pe.properties.part;
-          console.log(
+          bridgeLogger.debug(
             `[BridgeFlowDebug] part.updated sid=${p.sessionID} mid=${p.messageID} type=${p.type} deltaLen=${(pe.properties.delta || '').length}`,
           );
           await handleMessagePartUpdatedEvent(event as EventMessagePartUpdated, mux, deps);
@@ -403,7 +415,7 @@ export async function startGlobalEventListenerWithDeps(
     } catch (e) {
       if (deps.listenerState.shouldStopListener) return;
 
-      console.error('[Listener] ❌ Stream Disconnected:', e);
+      bridgeLogger.error('[Listener] stream disconnected', e);
       await flushAll(mux, deps);
 
       const delay = Math.min(5000 * (retryCount + 1), 60000);

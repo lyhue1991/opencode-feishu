@@ -3,6 +3,7 @@ import type { BridgeAdapter } from '../types';
 import { LOADING_EMOJI } from '../constants';
 import { drainPendingFileParts, saveFilePartToLocal } from '../bridge/file.store';
 import { ERROR_HEADER, parseSlashCommand, globalState } from '../utils';
+import { bridgeLogger } from '../logger';
 import { handleSlashCommand } from './command';
 import type { AdapterMux } from './mux';
 
@@ -68,8 +69,8 @@ export const createIncomingHandlerWithDeps = (
     senderId: string,
     parts?: Array<TextPartInput | FilePartInput>,
   ) => {
-    console.log(
-      `[Bridge] 📥 [${adapterKey}] Incoming chat=${chatId} sender=${senderId} msg=${messageId} text="${text || ''}" parts=${parts?.length || 0}`,
+    bridgeLogger.info(
+      `[Incoming] adapter=${adapterKey} chat=${chatId} sender=${senderId} msg=${messageId} textLen=${text?.length || 0} parts=${parts?.length || 0}`,
     );
 
     const slash = parseSlashCommand(text);
@@ -201,11 +202,11 @@ export const createIncomingHandlerWithDeps = (
       const hasText = Boolean(text && text.trim());
 
       if (fileParts.length > 0) {
-        console.log(
-          `[Bridge] 📎 [${adapterKey}] file parts detail count=${fileParts.length} chat=${chatId}`,
+        bridgeLogger.info(
+          `[Incoming] file-parts adapter=${adapterKey} chat=${chatId} count=${fileParts.length}`,
         );
         fileParts.forEach((p, idx) => {
-          console.log(
+          bridgeLogger.info(
             `[Bridge] 📎 [${adapterKey}] file[${idx}] name=${p.filename || ''} mime=${p.mime || ''} url=${(p.url || '').slice(0, 64)}${(p.url || '').length > 64 ? '...' : ''}`,
           );
         });
@@ -214,8 +215,8 @@ export const createIncomingHandlerWithDeps = (
         const duplicated: string[] = [];
         let failed = 0;
 
-        console.log(
-          `[Bridge] 📁 [${adapterKey}] received ${fileParts.length} file(s) chat=${chatId}`,
+        bridgeLogger.info(
+          `[Incoming] files-received adapter=${adapterKey} chat=${chatId} count=${fileParts.length}`,
         );
 
         for (const p of fileParts) {
@@ -229,8 +230,8 @@ export const createIncomingHandlerWithDeps = (
         }
 
         if (!hasText) {
-          console.log(
-            `[Bridge] 📁 [${adapterKey}] file-only message chat=${chatId} saved=${saved.length} duplicated=${duplicated.length} failed=${failed}`,
+          bridgeLogger.info(
+            `[Incoming] file-only adapter=${adapterKey} chat=${chatId} saved=${saved.length} duplicated=${duplicated.length} failed=${failed}`,
           );
           const lines: string[] = [];
           if (saved.length > 0 && failed === 0 && duplicated.length === 0) {
@@ -282,15 +283,15 @@ export const createIncomingHandlerWithDeps = (
       }
       const pendingFiles = await drainPendingFileParts(cacheKey);
       if (pendingFiles.length > 0) {
-        console.log(
-          `[Bridge] 📤 [${adapterKey}] attach pending files count=${pendingFiles.length} chat=${chatId}`,
+        bridgeLogger.info(
+          `[Incoming] attach-pending-files adapter=${adapterKey} chat=${chatId} count=${pendingFiles.length}`,
         );
         partList.push(...pendingFiles);
       }
       if (partList.length === 0) return;
 
-      console.log(
-        `[Bridge] 🚀 [${adapterKey}] prompt parts=${partList.length} text=${hasText} files=${pendingFiles.length} chat=${chatId}`,
+      bridgeLogger.info(
+        `[Incoming] prompt adapter=${adapterKey} chat=${chatId} parts=${partList.length} text=${hasText} files=${pendingFiles.length} agent=${agent || '-'} model=${model?.name || model?.modelID || '-'}`,
       );
       await api.session.prompt({
         path: { id: sessionId },
@@ -301,9 +302,9 @@ export const createIncomingHandlerWithDeps = (
         },
       });
 
-      console.log(`[Bridge] [${adapterKey}] [Session: ${sessionId}] 🚀 Prompt Sent.`);
+      bridgeLogger.info(`[Incoming] prompt-sent adapter=${adapterKey} session=${sessionId}`);
     } catch (err: unknown) {
-      console.error(`[Bridge] ❌ [${adapterKey}] Error:`, err);
+      bridgeLogger.error(`[Incoming] adapter=${adapterKey} chat=${chatId} failed`, err);
       await adapter.sendMessage(chatId, `${ERROR_HEADER}\n${deps.formatUserError(err)}`);
     } finally {
       if (messageId && reactionId && adapter.removeReaction) {

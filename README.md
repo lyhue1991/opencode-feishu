@@ -141,6 +141,26 @@ If your OpenCode setup provides additional slash commands, they will still be fo
 
 ---
 
+## 🧾 Logging
+
+The bridge now uses a unified logger and writes logs to file by default.
+
+Environment variables:
+
+* `BRIDGE_LOG_FILE` - custom log file path (default: `logs/bridge.log`)
+* `BRIDGE_LOG_STDOUT` - enable/disable terminal log output (`true` by default)
+* `BRIDGE_DEBUG` - enable debug-level logs (`false` by default)
+
+Example:
+
+```bash
+BRIDGE_DEBUG=true BRIDGE_LOG_FILE=/tmp/bridge.log opencode web
+```
+
+You can also check the current log path via `/status` (`logFile` field).
+
+---
+
 ## 📦 Installation
 
 Inside your OpenCode Agent config directory:

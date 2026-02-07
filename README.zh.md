@@ -128,6 +128,26 @@ UI 相关命令（主题/编辑器/退出等）**不适合聊天场景**，因�
 
 ---
 
+## 🧾 日志配置
+
+桥接日志已统一收口到同一套 logger，并默认写入文件。
+
+可用环境变量：
+
+* `BRIDGE_LOG_FILE`：自定义日志文件路径（默认：`logs/bridge.log`）
+* `BRIDGE_LOG_STDOUT`：是否输出到终端（默认 `true`）
+* `BRIDGE_DEBUG`：是否开启 debug 级别日志（默认 `false`）
+
+示例：
+
+```bash
+BRIDGE_DEBUG=true BRIDGE_LOG_FILE=/tmp/bridge.log opencode web
+```
+
+也可以通过 `/status` 查看当前日志路径（`logFile` 字段）。
+
+---
+
 ## 📦 安装
 
 在 OpenCode Agent 配置目录中执行：

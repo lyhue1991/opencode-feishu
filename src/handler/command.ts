@@ -2,6 +2,7 @@
 import type { FilePartInput, OpencodeClient, TextPartInput } from '@opencode-ai/sdk';
 import { DEFAULT_MAX_FILE_MB, DEFAULT_MAX_FILE_RETRY, globalState } from '../utils';
 import { isBridgeAgentId } from '../constants';
+import { bridgeLogger, getBridgeLogFilePath } from '../logger';
 
 type SessionListItem = { id: string; title: string };
 type AgentListItem = { id: string; name: string };
@@ -145,6 +146,9 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
     sendUnsupported,
     isKnownCustomCommand,
   } = ctx;
+  bridgeLogger.info(
+    `[Command] adapter=${ctx.adapterKey} chat=${ctx.chatId} cmd=/${slash.command} normalized=${normalizedCommand || '-'} args="${slash.arguments || ''}"`,
+  );
 
   if (normalizedCommand === 'help') {
     const res = await api.command.list();
@@ -207,6 +211,7 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
     lines.push(`- uptime: ${uptimeMin}m ${uptimeRemainSec}s`);
     lines.push(`- node: ${process.version}`);
     lines.push(`- platform: ${process.platform}/${process.arch}`);
+    lines.push(`- logFile: ${getBridgeLogFilePath()}`);
     await sendCommandMessage(lines.join('\n'));
     return true;
   }
@@ -559,8 +564,8 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
     path: { id: sessionId },
     body: { command: slash.command, arguments: slash.arguments },
   });
-  console.log(
-    `[Bridge] [${ctx.adapterKey}] [Session: ${sessionId}] 🚀 Command /${slash.command} Sent.`
+  bridgeLogger.info(
+    `[Command] adapter=${ctx.adapterKey} session=${sessionId} sent=/${slash.command}`,
   );
   return true;
 }

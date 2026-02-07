@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { FilePartInput } from '@opencode-ai/sdk';
+import { bridgeLogger } from '../logger';
 
 export type StoredFileRecord = {
   id: string;
@@ -134,7 +135,7 @@ export async function saveFilePartToLocal(
 
     const existing = seenByChat.get(digest);
     if (existing && (await fileExists(existing.path))) {
-      console.log(
+      bridgeLogger.info(
         `[FileStore] 🟡 duplicate skipped chat=${chatKey} name=${filename} path=${existing.path}`,
       );
       return { ok: true, record: existing, duplicated: true };
@@ -160,14 +161,14 @@ export async function saveFilePartToLocal(
     list.push(record);
     pendingFiles.set(chatKey, list);
 
-    console.log(
+    bridgeLogger.info(
       `[FileStore] ✅ saved chat=${chatKey} name=${filename} size=${buffer.length} path=${destPath}`,
     );
 
     return { ok: true, record };
   } catch (err: unknown) {
     const message = getErrorMessage(err);
-    console.error('[FileStore] ❌ save failed', {
+    bridgeLogger.error('[FileStore] ❌ save failed', {
       chatKey,
       filename: part?.filename,
       mime: part?.mime,
@@ -181,7 +182,7 @@ export async function drainPendingFileParts(chatKey: string): Promise<FilePartIn
   const list = pendingFiles.get(chatKey) || [];
   pendingFiles.delete(chatKey);
   if (list.length > 0) {
-    console.log(`[FileStore] 📤 draining ${list.length} file(s) chat=${chatKey}`);
+    bridgeLogger.info(`[FileStore] 📤 draining ${list.length} file(s) chat=${chatKey}`);
   }
 
   const parts: FilePartInput[] = [];
@@ -195,9 +196,9 @@ export async function drainPendingFileParts(chatKey: string): Promise<FilePartIn
         filename: record.filename,
         url: dataUrl,
       });
-      console.log(`[FileStore] ✅ queued for prompt path=${record.path}`);
+      bridgeLogger.info(`[FileStore] ✅ queued for prompt path=${record.path}`);
     } catch {
-      console.warn(`[FileStore] ⚠️ missing file on disk, skip: ${record.path}`);
+      bridgeLogger.warn(`[FileStore] ⚠️ missing file on disk, skip: ${record.path}`);
       // ignore missing file, but keep moving
     }
   }

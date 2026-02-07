@@ -9,6 +9,7 @@ import type { BridgeAdapter, FeishuConfig } from './src/types';
 import { globalState } from './src/utils';
 import { AGENT_LARK } from './src/constants';
 import { OpencodeClient } from '@opencode-ai/sdk';
+import { bridgeLogger } from './src/logger';
 
 let feishuAdapter: BridgeAdapter | null = globalState.__bridge_feishu_adapter || null;
 
@@ -30,7 +31,7 @@ function parseFeishuConfig(options: Record<string, any>): FeishuConfig {
       : undefined;
 
   if (mode === 'webhook' && !callbackUrl) {
-    console.error('[FeishuBridge] Missing callback_url in webhook mode');
+    bridgeLogger.error('[FeishuBridge] Missing callback_url in webhook mode');
   }
 
   if (!app_id || !app_secret) {
@@ -57,9 +58,9 @@ export async function startFeishuBridge(client: OpencodeClient, rawConfig: Confi
   if (!feishuAdapter) {
     feishuAdapter = new FeishuAdapter(feishuConfig);
     globalState.__bridge_feishu_adapter = feishuAdapter;
-    console.log('[FeishuBridge] Created FeishuAdapter.');
+    bridgeLogger.info('[FeishuBridge] Created FeishuAdapter.');
   } else {
-    console.log('[FeishuBridge] Reusing FeishuAdapter.');
+    bridgeLogger.info('[FeishuBridge] Reusing FeishuAdapter.');
   }
 
   // listener 只启动一次（全局）
@@ -68,18 +69,18 @@ export async function startFeishuBridge(client: OpencodeClient, rawConfig: Confi
   }
 
   if (!globalState.__bridge_listener_started) {
-    console.log('[FeishuBridge] Starting Global Event Listener...');
+    bridgeLogger.info('[FeishuBridge] Starting Global Event Listener...');
     const mux = new AdapterMux();
     mux.register(AGENT_LARK, feishuAdapter);
     globalState.__bridge_mux = mux;
 
     startGlobalEventListener(client, mux).catch(err => {
-      console.error('[FeishuBridge] ❌ startGlobalEventListener failed:', err);
+      bridgeLogger.error('[FeishuBridge] ❌ startGlobalEventListener failed:', err);
       globalState.__bridge_listener_started = false;
     });
     globalState.__bridge_listener_started = true;
   } else {
-    console.log('[FeishuBridge] Global listener already running.');
+    bridgeLogger.info('[FeishuBridge] Global listener already running.');
   }
 
   // incoming handler（平台->opencode）
@@ -88,5 +89,5 @@ export async function startFeishuBridge(client: OpencodeClient, rawConfig: Confi
   const incoming = createIncomingHandler(client, mux, AGENT_LARK);
   await feishuAdapter.start(incoming);
 
-  console.log('[FeishuBridge] ✅ Ready.');
+  bridgeLogger.info('[FeishuBridge] ✅ Ready.');
 }

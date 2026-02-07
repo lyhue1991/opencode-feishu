@@ -175,11 +175,14 @@ export function buildDisplayContent(buffer: MessageBuffer): string {
   // Status（纯字段，无 label/emoji）
   out.push('## Status');
   out.push(`${buffer.status}${buffer.statusNote ? `: ${buffer.statusNote}` : ''}`);
-  out.push(`agent: ${buffer.selectedAgent || 'default'}`);
+  out.push(buffer.selectedAgent || 'default');
   if (buffer.selectedModel) {
     const model = buffer.selectedModel;
-    const modelLabel = model.name || model.modelID;
-    out.push(`model: ${model.providerID}/${modelLabel}`);
+    const rawModelLabel = model.name || model.modelID;
+    const modelLabel = rawModelLabel.includes('/')
+      ? rawModelLabel.split('/').filter(Boolean).pop() || rawModelLabel
+      : rawModelLabel;
+    out.push(modelLabel);
   }
 
   return out.join('\n');

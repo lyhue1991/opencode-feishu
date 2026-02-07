@@ -8,6 +8,7 @@ import * as https from 'https';
 
 import type { FeishuConfig, IncomingMessageHandler } from '../types';
 import type { FilePartInput } from '@opencode-ai/sdk';
+import { bridgeLogger } from '../logger';
 import {
   DEFAULT_MAX_FILE_MB,
   DEFAULT_MAX_FILE_RETRY,
@@ -148,7 +149,7 @@ export class FeishuClient {
 
   private isMessageProcessed(messageId: string): boolean {
     if (processedMessageIds.has(messageId)) {
-      console.log(`[Feishu] 🚫 Ignoring duplicate message ID: ${messageId}`);
+      bridgeLogger.info(`[Feishu] 🚫 Ignoring duplicate message ID: ${messageId}`);
       return true;
     }
     processedMessageIds.add(messageId);
@@ -299,7 +300,7 @@ export class FeishuClient {
     content: Record<string, string>,
   ): Promise<boolean> {
     try {
-      console.log(
+      bridgeLogger.info(
         `[Feishu] 📤 sendMediaMessage type=${msgType} chat=${chatId} content=${JSON.stringify(
           content,
         )}`,
@@ -319,7 +320,7 @@ export class FeishuClient {
       );
       return res.code === 0;
     } catch (e) {
-      console.error('[Feishu] ❌ Failed to send media:', e);
+      bridgeLogger.error('[Feishu] ❌ Failed to send media:', e);
       return false;
     }
   }
@@ -331,12 +332,12 @@ export class FeishuClient {
     const { url, filename } = file;
     if (!url) return false;
 
-    console.log(
+    bridgeLogger.info(
       `[Feishu] 📎 sendFileAttachment url=${url.slice(0, 120)}${
         url.length > 120 ? '...' : ''
       } filename=${filename || ''} mime=${file.mime || ''}`,
     );
-    console.log(
+    bridgeLogger.info(
       `[Feishu] 🌐 proxy http_proxy=${process.env.http_proxy || ''} https_proxy=${
         process.env.https_proxy || ''
       } NO_PROXY=${process.env.NO_PROXY || process.env.no_proxy || ''}`,
@@ -349,29 +350,29 @@ export class FeishuClient {
     if (url.startsWith('data:')) {
       const decoded = this.decodeDataUrl(url);
       if (!decoded) {
-        console.warn('[Feishu] ⚠️ Skip file: invalid data URL.');
+        bridgeLogger.warn('[Feishu] ⚠️ Skip file: invalid data URL.');
         return false;
       }
       buffer = decoded.buffer;
       if (!mime) mime = decoded.mime;
-      console.log(`[Feishu] ✅ data URL decoded size=${buffer.length} mime=${mime}`);
+      bridgeLogger.info(`[Feishu] ✅ data URL decoded size=${buffer.length} mime=${mime}`);
     } else if (url.startsWith('http://') || url.startsWith('https://')) {
       const maxBytes = mime.startsWith('image/') ? 10 * 1024 * 1024 : 30 * 1024 * 1024;
       try {
-        console.log(`[Feishu] ⬇️ downloading url (max=${maxBytes} bytes)`);
+        bridgeLogger.info(`[Feishu] ⬇️ downloading url (max=${maxBytes} bytes)`);
         const res = await this.fetchUrlToBuffer(url, maxBytes);
         buffer = res.buffer;
         if (!mime) mime = res.mime || '';
         if (!finalName) finalName = res.filename || '';
-        console.log(
+        bridgeLogger.info(
           `[Feishu] ✅ download ok size=${buffer.length} mime=${mime} filename=${finalName}`,
         );
       } catch (e) {
-        console.error('[Feishu] ❌ Download file failed:', e);
+        bridgeLogger.error('[Feishu] ❌ Download file failed:', e);
         return false;
       }
     } else {
-      console.warn('[Feishu] ⚠️ Skip file: unsupported URL scheme.');
+      bridgeLogger.warn('[Feishu] ⚠️ Skip file: unsupported URL scheme.');
       return false;
     }
 
@@ -380,11 +381,11 @@ export class FeishuClient {
 
     if (mime.startsWith('image/')) {
       if (buffer.length > 10 * 1024 * 1024) {
-        console.warn('[Feishu] ⚠️ Image too large (>10MB).');
+        bridgeLogger.warn('[Feishu] ⚠️ Image too large (>10MB).');
         return false;
       }
       try {
-        console.log(
+        bridgeLogger.info(
           `[Feishu] ⬆️ uploading image size=${buffer.length} mime=${mime} name=${finalName}`,
         );
         const resp = await this.runWithTenantRetry(options =>
@@ -396,23 +397,23 @@ export class FeishuClient {
           ),
         );
         const imageKey = resp?.image_key;
-        console.log(`[Feishu] ✅ upload image ok image_key=${imageKey || ''}`);
+        bridgeLogger.info(`[Feishu] ✅ upload image ok image_key=${imageKey || ''}`);
         if (!imageKey) return false;
         return this.sendMediaMessage(chatId, 'image', { image_key: imageKey });
       } catch (e) {
-        console.error('[Feishu] ❌ Upload image failed:', e);
+        bridgeLogger.error('[Feishu] ❌ Upload image failed:', e);
         return false;
       }
     }
 
     if (buffer.length > 30 * 1024 * 1024) {
-      console.warn('[Feishu] ⚠️ File too large (>30MB).');
+      bridgeLogger.warn('[Feishu] ⚠️ File too large (>30MB).');
       return false;
     }
 
     try {
       const fileType = this.inferFileType(mime, finalName);
-      console.log(
+      bridgeLogger.info(
         `[Feishu] ⬆️ uploading file size=${buffer.length} mime=${mime} type=${fileType} name=${finalName}`,
       );
       const resp = await this.runWithTenantRetry(options =>
@@ -428,11 +429,11 @@ export class FeishuClient {
         ),
       );
       const fileKey = resp?.file_key;
-      console.log(`[Feishu] ✅ upload file ok file_key=${fileKey || ''}`);
+      bridgeLogger.info(`[Feishu] ✅ upload file ok file_key=${fileKey || ''}`);
       if (!fileKey) return false;
       return this.sendMediaMessage(chatId, 'file', { file_key: fileKey });
     } catch (e) {
-      console.error('[Feishu] ❌ Upload file failed:', e);
+      bridgeLogger.error('[Feishu] ❌ Upload file failed:', e);
       return false;
     }
   }
@@ -452,7 +453,7 @@ export class FeishuClient {
       }
       return text.trim();
     } catch (e: unknown) {
-      console.error(`[Feishu] ❌ Content Parse Error!`, e);
+      bridgeLogger.error(`[Feishu] ❌ Content Parse Error!`, e);
       return '';
     }
   }
@@ -522,9 +523,9 @@ export class FeishuClient {
       return await fn(options);
     } catch (e) {
       if (!this.shouldRefreshTenantToken(e)) throw e;
-      console.warn('[Feishu] 🔄 tenant_access_token expired, refreshing...');
+      bridgeLogger.warn('[Feishu] 🔄 tenant_access_token expired, refreshing...');
       await this.refreshTenantToken();
-      console.info('[Feishu] ✅ tenant_access_token refreshed.');
+      bridgeLogger.info('[Feishu] ✅ tenant_access_token refreshed.');
       const retryOptions = this.tenantToken ? lark.withTenantToken(this.tenantToken) : undefined;
       return await fn(retryOptions);
     }
@@ -538,7 +539,7 @@ export class FeishuClient {
   ): Promise<FilePartInput | null> {
     let content: Record<string, unknown>;
 
-    console.info('buildFilePart prams', { messageId, msgType, contentJson, chatId });
+    bridgeLogger.info('buildFilePart prams', { messageId, msgType, contentJson, chatId });
 
     try {
       const parsed = JSON.parse(contentJson);
@@ -563,7 +564,7 @@ export class FeishuClient {
 
     const progressKey = messageId;
     try {
-      console.log(
+      bridgeLogger.info(
         `[Feishu] 📦 Download resource start: msg=${messageId} type=${msgType} key=${fileKey} name=${fileName}`,
       );
       const maxSizeMb =
@@ -620,7 +621,7 @@ export class FeishuClient {
             2,
           )}MB），当前限制 ${maxSizeMb}MB。可用 /maxFileSize <xmb> 调整。`,
         );
-        console.warn(
+        bridgeLogger.warn(
           `[Feishu] ⚠️ Resource too large by header: ${contentLength} bytes > ${maxBytes}`,
         );
         if (progressMsgId) {
@@ -647,7 +648,7 @@ export class FeishuClient {
             2,
           )}MB），当前限制 ${maxSizeMb}MB。可用 /maxFileSize <xmb> 调整。`,
         );
-        console.warn(`[Feishu] ⚠️ Resource too large by body: ${buf.length} bytes > ${maxBytes}`);
+        bridgeLogger.warn(`[Feishu] ⚠️ Resource too large by body: ${buf.length} bytes > ${maxBytes}`);
         if (progressMsgId) {
           await this.editMessage(
             chatId,
@@ -667,7 +668,7 @@ export class FeishuClient {
         res.mime || (res.headers?.['content-type'] as string) || 'application/octet-stream';
       const url = `data:${mime};base64,${buf.toString('base64')}`;
 
-      console.log(`[Feishu] ✅ Download resource ok: size=${buf.length} bytes mime=${mime}`);
+      bridgeLogger.info(`[Feishu] ✅ Download resource ok: size=${buf.length} bytes mime=${mime}`);
 
       return {
         type: 'file',
@@ -676,7 +677,7 @@ export class FeishuClient {
         url,
       };
     } catch (e) {
-      console.error('[Feishu] ❌ Failed to download resource:', {
+      bridgeLogger.error('[Feishu] ❌ Failed to download resource:', {
         messageId,
         msgType,
         fileKey,
@@ -747,10 +748,10 @@ export class FeishuClient {
         ),
       );
       if (res.code === 0 && res.data?.message_id) return res.data.message_id;
-      console.error('[Feishu] ❌ Send failed:', res);
+      bridgeLogger.error('[Feishu] ❌ Send failed:', res);
       return null;
     } catch (e) {
-      console.error('[Feishu] ❌ Failed to send:', e);
+      bridgeLogger.error('[Feishu] ❌ Failed to send:', e);
       return null;
     }
   }
@@ -819,7 +820,7 @@ export class FeishuClient {
 
     const dispatcher = new lark.EventDispatcher({}).register({
       'im.message.receive_v1': async data => {
-        console.info('.message.receive--->', data);
+        bridgeLogger.info('.message.receive--->', data);
         const { message, sender } = data;
         const messageId = message.message_id;
         const chatId = message.chat_id;
@@ -831,7 +832,7 @@ export class FeishuClient {
         if (msgType === 'text') {
           const text = this.parseAndCleanContent(message.content, message.mentions);
           if (!text) return;
-          console.log(
+          bridgeLogger.info(
             `[Feishu] 📥 ws text chat=${chatId} msg=${messageId} sender=${senderId} len=${text.length}`,
           );
           await onMessage(chatId, text, messageId, senderId);
@@ -840,7 +841,7 @@ export class FeishuClient {
 
         const part = await this.buildFilePart(messageId, msgType, message.content, chatId);
         if (!part) return;
-        console.log(
+        bridgeLogger.info(
           `[Feishu] 📥 ws file chat=${chatId} msg=${messageId} sender=${senderId} type=${msgType} name=${part.filename || ''} mime=${part.mime || ''}`,
         );
         await onMessage(chatId, '', messageId, senderId, [part]);
@@ -849,7 +850,7 @@ export class FeishuClient {
 
     await this.wsClient.start({ eventDispatcher: dispatcher });
     globalState.__feishu_ws_client_instance = this.wsClient;
-    console.log('✅ Feishu WebSocket Connected!');
+    bridgeLogger.info('✅ Feishu WebSocket Connected!');
   }
 
   async startWebhook(onMessage: IncomingMessageHandler) {
@@ -924,11 +925,11 @@ export class FeishuClient {
               if (msgType === 'text') {
                 const text = this.parseAndCleanContent(content, mentions);
                 if (text) {
-                  console.log(
+                  bridgeLogger.info(
                     `[Feishu] 📥 webhook text chat=${chatId} msg=${messageId} sender=${senderId} len=${text.length}`,
                   );
                   onMessage(chatId, text, messageId, senderId).catch(err => {
-                    console.error('[Feishu Webhook] ❌ Handler Error:', err);
+                    bridgeLogger.error('[Feishu Webhook] ❌ Handler Error:', err);
                   });
                 }
               } else {
@@ -939,11 +940,11 @@ export class FeishuClient {
                   chatId,
                 );
                 if (!part) return;
-                console.log(
+                bridgeLogger.info(
                   `[Feishu] 📥 webhook file chat=${chatId} msg=${messageId} sender=${senderId} type=${msgType} name=${part.filename || ''} mime=${part.mime || ''}`,
                 );
                 onMessage(chatId, '', messageId, senderId, [part]).catch(err => {
-                  console.error('[Feishu Webhook] ❌ Handler Error:', err);
+                  bridgeLogger.error('[Feishu Webhook] ❌ Handler Error:', err);
                 });
               }
             }
@@ -953,7 +954,7 @@ export class FeishuClient {
           res.writeHead(200);
           res.end('OK');
         } catch (e) {
-          console.error('[Feishu Webhook] ❌ Server Error:', e);
+          bridgeLogger.error('[Feishu Webhook] ❌ Server Error:', e);
           if (!res.headersSent) {
             res.writeHead(500);
             res.end();
@@ -963,11 +964,11 @@ export class FeishuClient {
     });
 
     this.httpServer.listen(port, () => {
-      console.log(`✅ Feishu Webhook Server listening on port ${port}`);
+      bridgeLogger.info(`✅ Feishu Webhook Server listening on port ${port}`);
       if (this.callbackUrl) {
-        console.log(`[Feishu] Callback URL: ${this.callbackUrl}`);
+        bridgeLogger.info(`[Feishu] Callback URL: ${this.callbackUrl}`);
       } else {
-        console.log('[Feishu] Callback URL: http://<public-host>:' + port);
+        bridgeLogger.info('[Feishu] Callback URL: http://<public-host>:' + port);
       }
     });
   }
