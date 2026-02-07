@@ -3,8 +3,10 @@
 type FeishuCard = {
   config?: { wide_screen_mode?: boolean };
   header?: { title: { tag: 'plain_text'; content: string }; template?: string };
-  elements: any[];
+  elements: FeishuCardElement[];
 };
+
+type FeishuCardElement = Record<string, unknown>;
 
 export type RenderedFile = {
   filename?: string;
@@ -31,7 +33,7 @@ function spacer() {
   return { tag: 'div', text: { tag: 'lark_md', content: ' ' } };
 }
 
-function collapsiblePanel(title: string, content: string, expanded = false) {
+function collapsiblePanel(title: string, content: string, expanded = false, borderColor?: string) {
   const c = trimSafe(content);
   if (!c) return null;
 
@@ -45,9 +47,73 @@ function collapsiblePanel(title: string, content: string, expanded = false) {
     border: {
       top: true,
       bottom: true,
+      ...(borderColor ? { color: borderColor } : {}),
     },
     elements: [larkMd(c)],
   };
+}
+
+function splitToolsIntoExecutionPanels(rawTools: string): string[] {
+  const raw = trimSafe(rawTools);
+  if (!raw) return [];
+
+  const lines = raw.split('\n');
+
+  const stepHeaderIndexes: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*###\s*steps?\s+\d+/i.test(lines[i])) stepHeaderIndexes.push(i);
+  }
+  if (stepHeaderIndexes.length > 0) {
+    const panels: string[] = [];
+    for (let i = 0; i < stepHeaderIndexes.length; i++) {
+      const start = stepHeaderIndexes[i];
+      const end = i + 1 < stepHeaderIndexes.length ? stepHeaderIndexes[i + 1] : lines.length;
+      const block = trimSafe(lines.slice(start + 1, end).join('\n'));
+      if (block) panels.push(block);
+    }
+    if (panels.length > 0) return panels;
+  }
+
+  const toolStartIndexes: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/^-\s*\S+/.test(lines[i])) toolStartIndexes.push(i);
+  }
+  if (toolStartIndexes.length === 0) return [raw];
+
+  const panels: string[] = [];
+  for (let i = 0; i < toolStartIndexes.length; i++) {
+    const start = toolStartIndexes[i];
+    const end = i + 1 < toolStartIndexes.length ? toolStartIndexes[i + 1] : lines.length;
+    const block = trimSafe(lines.slice(start, end).join('\n'));
+    if (block) panels.push(block);
+  }
+  return panels.length > 0 ? panels : [raw];
+}
+
+function normalizeSectionTitle(rawTitle: string): string {
+  return (rawTitle || '')
+    .trim()
+    .replace(/[*#:：]/g, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function matchSectionKey(
+  rawTitle: string,
+): 'thinking' | 'error' | 'command' | 'tools' | 'files' | 'status' | 'answer' | null {
+  const t = normalizeSectionTitle(rawTitle);
+  if (!t) return null;
+
+  if (['thinking', 'thought', '思考'].includes(t)) return 'thinking';
+  if (['error', '错误'].includes(t)) return 'error';
+  if (['command', '命令'].includes(t)) return 'command';
+  if (['tool', 'tools', 'step', 'steps', '工具', '步骤', 'tools / steps'].includes(t))
+    return 'tools';
+  if (['file', 'files', '文件'].includes(t)) return 'files';
+  if (['status', '状态'].includes(t)) return 'status';
+  if (['answer', '回答'].includes(t)) return 'answer';
+
+  return null;
 }
 
 function getStatusWithEmoji(statusText: string): string {
@@ -146,24 +212,9 @@ function parseSections(md: string) {
 
     const content = cleanMd.slice(startIndex, endIndex);
 
-    if (rawTitle.includes('think') || rawTitle.includes('思')) {
-      sectionMap.thinking += content;
-    } else if (rawTitle.includes('error') || rawTitle.includes('错误')) {
-      sectionMap.error += content;
-    } else if (rawTitle.includes('command') || rawTitle.includes('命令')) {
-      sectionMap.command += content;
-    } else if (
-      rawTitle.includes('tool') ||
-      rawTitle.includes('step') ||
-      rawTitle.includes('工具')
-    ) {
-      sectionMap.tools += content;
-    } else if (rawTitle.includes('file') || rawTitle.includes('文件')) {
-      sectionMap.files += content;
-    } else if (rawTitle.includes('status') || rawTitle.includes('状态')) {
-      sectionMap.status += content;
-    } else if (rawTitle.includes('answer') || rawTitle.includes('回答')) {
-      sectionMap.answer += content;
+    const sectionKey = matchSectionKey(match[2]);
+    if (sectionKey) {
+      sectionMap[sectionKey] += content;
     } else {
       sectionMap.answer += `\n\n**${match[2]}**\n${content}`;
     }
@@ -225,7 +276,7 @@ export function extractFilesFromHandlerMarkdown(markdown: string): RenderedFile[
   return out;
 }
 
-function renderHelpCommand(command: string): any[] | null {
+function renderHelpCommand(command: string): FeishuCardElement[] | null {
   const lines = command
     .split('\n')
     .map(l => l.trim())
@@ -234,7 +285,7 @@ function renderHelpCommand(command: string): any[] | null {
   const helpIndex = lines.findIndex(l => /^###\s*help/i.test(l));
   if (helpIndex === -1) return null;
 
-  const elements: any[] = [];
+  const elements: FeishuCardElement[] = [];
   const commandLines: string[] = [];
 
   for (let i = helpIndex + 1; i < lines.length; i++) {
@@ -252,7 +303,7 @@ function renderHelpCommand(command: string): any[] | null {
   return elements;
 }
 
-function renderModelsCommand(command: string): any[] | null {
+function renderModelsCommand(command: string): FeishuCardElement[] | null {
   const lines = command
     .split('\n')
     .map(l => l.trim())
@@ -260,7 +311,7 @@ function renderModelsCommand(command: string): any[] | null {
 
   if (lines.length === 0 || !/^###\s*models/i.test(lines[0])) return null;
 
-  const elements: any[] = [];
+  const elements: FeishuCardElement[] = [];
   elements.push(larkMd('**Available Models**'));
 
   let i = 1;
@@ -308,10 +359,9 @@ function renderModelsCommand(command: string): any[] | null {
 }
 
 export function renderFeishuCardFromHandlerMarkdown(handlerMarkdown: string): string {
-  const { command, error, thinking, answer, tools, files, status } =
-    parseSections(handlerMarkdown);
+  const { command, error, thinking, answer, tools, files, status } = parseSections(handlerMarkdown);
 
-  const elements: any[] = [];
+  const elements: FeishuCardElement[] = [];
 
   let headerTitle = '🤖 AI Assistant';
   let headerColor = 'blue';
@@ -341,17 +391,23 @@ export function renderFeishuCardFromHandlerMarkdown(handlerMarkdown: string): st
   }
 
   if (thinking.trim()) {
-    elements.push(collapsiblePanel('💭 Thinking', thinking, false));
+    const panel = collapsiblePanel('💭 Thinking', thinking, false);
+    if (panel) elements.push(panel);
   }
 
   if (tools.trim()) {
     if (elements.length > 0) elements.push(spacer());
-    elements.push(collapsiblePanel('⚙️ Execution', tools, false));
+    const panels = splitToolsIntoExecutionPanels(tools);
+    panels.forEach((panel, idx) => {
+      const rendered = collapsiblePanel(`⚙️ Execution #${idx + 1}`, panel, false, 'turquoise');
+      if (rendered) elements.push(rendered);
+    });
   }
 
   if (files.trim()) {
     if (elements.length > 0) elements.push(spacer());
-    elements.push(collapsiblePanel('🖼️ Files', files, false));
+    const panel = collapsiblePanel('🖼️ Files', files, false);
+    if (panel) elements.push(panel);
   }
 
   const finalError = trimSafe(error);

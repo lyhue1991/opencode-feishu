@@ -14,6 +14,12 @@ export type StoredFileRecord = {
   savedAt: number;
 };
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'string') return err;
+  return 'save failed';
+}
+
 type SaveResult = {
   ok: boolean;
   record?: StoredFileRecord;
@@ -128,7 +134,6 @@ export async function saveFilePartToLocal(
 
     const existing = seenByChat.get(digest);
     if (existing && (await fileExists(existing.path))) {
-      // 已经保存过的文件，不重复入队
       console.log(
         `[FileStore] 🟡 duplicate skipped chat=${chatKey} name=${filename} path=${existing.path}`,
       );
@@ -160,14 +165,15 @@ export async function saveFilePartToLocal(
     );
 
     return { ok: true, record };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = getErrorMessage(err);
     console.error('[FileStore] ❌ save failed', {
       chatKey,
       filename: part?.filename,
       mime: part?.mime,
-      error: err?.message || err,
+      error: message,
     });
-    return { ok: false, error: err?.message || 'save failed' };
+    return { ok: false, error: message };
   }
 }
 

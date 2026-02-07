@@ -1,5 +1,5 @@
 import type { BridgeAdapter, FeishuConfig, IncomingMessageHandler } from '../types';
-import { FeishuClient } from './feishuClient';
+import { FeishuClient } from './feishu.client';
 import { FeishuRenderer, extractFilesFromHandlerMarkdown, RenderedFile } from './feishu.renderer';
 
 function clip(s: string, n = 8000) {
@@ -83,4 +83,5 @@ export class FeishuAdapter implements BridgeAdapter {
     }
     return sentNow;
   }
+
 }

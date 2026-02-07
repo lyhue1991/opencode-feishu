@@ -2,9 +2,16 @@ import axios from 'axios';
 
 export interface FeishuResourceResponse {
   buffer: Buffer;
-  headers: Record<string, any>;
+  headers: Record<string, unknown>;
   mime?: string;
 }
+
+type FeishuHttpError = Error & {
+  response?: {
+    status: number;
+    data: string;
+  };
+};
 
 // 原生sdk总是超时，直接使用url调用
 export async function fetchFeishuResourceToBuffer(params: {
@@ -40,7 +47,7 @@ export async function fetchFeishuResourceToBuffer(params: {
       res.data && Buffer.isBuffer(res.data)
         ? res.data.toString('utf8')
         : JSON.stringify(res.data || '');
-    const err: any = new Error(`HTTP ${status}: ${body}`);
+    const err: FeishuHttpError = new Error(`HTTP ${status}: ${body}`);
     err.response = { status, data: body };
     throw err;
   }
@@ -56,7 +63,10 @@ export async function fetchFeishuResourceToBuffer(params: {
     throw new Error('Content too large');
   }
 
-  const mime = (headers['content-type'] as string | undefined)?.split(';')[0]?.trim();
-  
+  const contentType = headers['content-type'];
+  const contentTypeText = Array.isArray(contentType) ? contentType[0] : contentType;
+  const mime =
+    typeof contentTypeText === 'string' ? contentTypeText.split(';')[0]?.trim() : undefined;
+
   return { buffer, headers, mime };
 }

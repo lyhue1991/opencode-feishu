@@ -4,6 +4,31 @@ import { DEFAULT_MAX_FILE_MB, DEFAULT_MAX_FILE_RETRY } from '../utils';
 
 type SessionListItem = { id: string; title: string };
 type AgentListItem = { id: string; name: string };
+type NamedRecord = { id?: string; name?: string; title?: string; description?: string };
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null;
+}
+
+function extractData(value: unknown): unknown {
+  if (isRecord(value) && 'data' in value) return value.data;
+  return value;
+}
+
+function asNamedRecords(value: unknown): NamedRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => {
+      if (!isRecord(item)) return null;
+      return {
+        id: typeof item.id === 'string' ? item.id : undefined,
+        name: typeof item.name === 'string' ? item.name : undefined,
+        title: typeof item.title === 'string' ? item.title : undefined,
+        description: typeof item.description === 'string' ? item.description : undefined,
+      } as NamedRecord;
+    })
+    .filter((v): v is NamedRecord => v !== null);
+}
 export type CommandContext = {
   api: OpencodeClient;
   adapterKey: string;
@@ -58,8 +83,7 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
 
   if (normalizedCommand === 'help') {
     const res = await api.command.list();
-    const data = (res as any)?.data ?? res;
-    const list = Array.isArray(data) ? data : [];
+    const list = asNamedRecords(extractData(res));
 
     const lines: string[] = [];
     lines.push('## Command');
@@ -79,9 +103,10 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
 
     if (list.length > 0) {
       lines.push('### Custom Commands');
-      list.forEach((cmd: any) => {
-        const desc = cmd?.description ? `- ${cmd.description}` : '';
-        lines.push(`/${cmd?.name} ${desc}`);
+      list.forEach(cmd => {
+        if (!cmd.name) return;
+        const desc = cmd.description ? `- ${cmd.description}` : '';
+        lines.push(`/${cmd.name} ${desc}`);
       });
     }
     await sendCommandMessage(lines.join('\n'));
@@ -208,30 +233,33 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
     }
 
     const res = await api.app.agents();
-    const data = (res as any)?.data ?? res;
-    const list = Array.isArray(data) ? data : [];
-    const exact = list.find((a: any) => a?.name === targetAgent || a?.id === targetAgent);
+    const list = asNamedRecords(extractData(res));
+    const exact = list.find(a => a.name === targetAgent || a.id === targetAgent);
     if (!exact) {
       await sendCommandMessage(`❌ 未找到 Agent: ${targetAgent}`);
       return true;
     }
-    chatAgent.set(cacheKey, exact.name || exact.id);
-    await sendCommandMessage(`✅ 已切换 Agent: ${exact.name || exact.id}`);
+    const picked = exact.name || exact.id;
+    if (!picked) {
+      await sendCommandMessage(`❌ 未找到 Agent: ${targetAgent}`);
+      return true;
+    }
+    chatAgent.set(cacheKey, picked);
+    await sendCommandMessage(`✅ 已切换 Agent: ${picked}`);
     return true;
   }
 
   if (normalizedCommand === 'agent' && !targetAgent) {
     const res = await api.app.agents();
-    const data = (res as any)?.data ?? res;
-    const list = Array.isArray(data) ? data : [];
+    const list = asNamedRecords(extractData(res));
     if (list.length === 0) {
       await sendCommandMessage('暂无可用 Agent。');
       return true;
     }
-    const agents = list.slice(0, 20).map((a: any) => ({
-      id: a?.id,
-      name: a?.name || a?.id,
-    }));
+    const agents = list
+      .slice(0, 20)
+      .map(a => ({ id: a.id, name: a.name || a.id }))
+      .filter((a): a is { id: string; name: string } => Boolean(a.id && a.name));
     chatAgentList.set(cacheKey, agents);
     const lines = ['## Command', '### Agents', '请输入 /agent <序号> 或 <name> 切换：'];
     agents.forEach((a, idx) => {
@@ -243,16 +271,15 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
 
   if (normalizedCommand === 'sessions' && !targetSessionId) {
     const res = await api.session.list({});
-    const data = (res as any)?.data ?? res;
-    const sessions = Array.isArray(data) ? data : [];
+    const sessions = asNamedRecords(extractData(res));
     if (sessions.length === 0) {
       await sendCommandMessage('暂无会话，请使用 /new 创建。');
       return true;
     }
-    const list = sessions.slice(0, 20).map((s: any) => ({
-      id: s?.id,
-      title: s?.title || 'Untitled',
-    }));
+    const list = sessions
+      .slice(0, 20)
+      .map(s => ({ id: s.id, title: s.title || 'Untitled' }))
+      .filter((s): s is { id: string; title: string } => Boolean(s.id));
     chatSessionList.set(cacheKey, list);
     const lines = ['## Command', '### Sessions', '请输入 /sessions <序号> 切换：'];
     list.forEach((s, idx) => {
@@ -285,8 +312,13 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
   if (normalizedCommand === 'share') {
     const sessionId = await ensureSession();
     const res = await api.session.share({ path: { id: sessionId } });
-    const data = (res as any)?.data ?? res;
-    const url = data?.share?.url;
+    const data = extractData(res);
+    const url =
+      isRecord(data) &&
+      isRecord(data.share) &&
+      typeof data.share.url === 'string'
+        ? data.share.url
+        : undefined;
     await sendCommandMessage(url ? `✅ 分享链接: ${url}` : '✅ 已分享会话。');
     return true;
   }

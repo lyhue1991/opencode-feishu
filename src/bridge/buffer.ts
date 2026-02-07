@@ -1,5 +1,5 @@
 // src/bridge/buffer.ts
-import type { ToolPart, ToolState } from '@opencode-ai/sdk';
+import type { FilePart, ToolPart, ToolState } from '@opencode-ai/sdk';
 import {
   SAFE_MAX_REASONING,
   SAFE_MAX_TEXT,
@@ -243,11 +243,9 @@ export function applyPartToBuffer(buffer: MessageBuffer, part: Part, delta?: str
   }
 
   if (part.type === 'file') {
-    const filePart = part as any;
+    const filePart = part as FilePart;
     if (
-      !buffer.files.some(
-        f => f.url === filePart.url && f.filename === filePart.filename
-      )
+      !buffer.files.some(f => f.url === filePart.url && f.filename === filePart.filename)
     ) {
       buffer.files.push({
         filename: filePart.filename,

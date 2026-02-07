@@ -16,7 +16,7 @@ import {
   sleep,
 } from '../utils';
 import { FeishuRenderer } from './feishu.renderer';
-import { fetchFeishuResourceToBuffer } from './feishuHttp';
+import { fetchFeishuResourceToBuffer } from './patch';
 import { LoggerLevel } from '@larksuiteoapi/node-sdk';
 
 function clip(s: string, n = 2000) {
@@ -31,15 +31,68 @@ function looksLikeJsonCard(s: string) {
   try {
     const obj = JSON.parse(trimmed);
     // 飞书卡片特征：必须是对象，通常有 elements 数组
-    return (
-      !!obj && typeof obj === 'object' && (Array.isArray(obj.elements) || (obj as any).card_link)
-    );
+    if (!obj || typeof obj !== 'object') return false;
+    const record = obj as Record<string, unknown>;
+    return Array.isArray(record.elements) || typeof record.card_link === 'string';
   } catch {
     return false;
   }
 }
 
-const processedMessageIds: Set<string> = globalState.__feishu_processed_ids || new Set<string>();
+type MentionLike = { key?: string };
+type TenantTokenResponse = {
+  token?: string;
+  expiresIn?: number;
+};
+
+type TenantRequestOptions = ReturnType<typeof lark.withTenantToken>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string') return error;
+  return '';
+}
+
+function getNestedRecord(value: unknown, key: string): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined;
+  const nested = value[key];
+  return isRecord(nested) ? nested : undefined;
+}
+
+function parseTenantTokenResponse(res: unknown): TenantTokenResponse {
+  const top = isRecord(res) ? res : undefined;
+  const data = top ? getNestedRecord(top, 'data') : undefined;
+
+  const tokenRaw = data?.tenant_access_token ?? top?.tenant_access_token;
+  const token = typeof tokenRaw === 'string' ? tokenRaw : undefined;
+
+  const expiresRaw =
+    data?.expire ??
+    data?.expires_in ??
+    data?.expire_in ??
+    top?.expire ??
+    top?.expires_in ??
+    top?.expire_in;
+
+  const expiresIn = expiresRaw != null ? Number(expiresRaw) : undefined;
+  return { token, expiresIn: Number.isFinite(expiresIn) ? expiresIn : undefined };
+}
+
+function getMessageType(value: unknown): string {
+  if (!isRecord(value)) return 'text';
+  const msgType = value.msg_type;
+  if (typeof msgType === 'string' && msgType) return msgType;
+  const messageType = value.message_type;
+  if (typeof messageType === 'string' && messageType) return messageType;
+  return 'text';
+}
+
+const processedMessageIds: Set<string> =
+  globalState.__feishu_processed_ids || new Set<string>();
 globalState.__feishu_processed_ids = processedMessageIds;
 
 function decryptEvent(encrypted: string, encryptKey: string): string {
@@ -384,12 +437,13 @@ export class FeishuClient {
     }
   }
 
-  private parseAndCleanContent(contentJson: string, mentions?: any[]): string {
+  private parseAndCleanContent(contentJson: string, mentions?: MentionLike[]): string {
     try {
-      const content = JSON.parse(contentJson);
-      let text: string = content.text || '';
+      const parsed = JSON.parse(contentJson);
+      const content = isRecord(parsed) ? parsed : {};
+      let text = typeof content.text === 'string' ? content.text : '';
       if (mentions && mentions.length > 0) {
-        mentions.forEach((m: any) => {
+        mentions.forEach(m => {
           if (m.key) {
             const regex = new RegExp(m.key, 'g');
             text = text.replace(regex, '');
@@ -397,7 +451,7 @@ export class FeishuClient {
         });
       }
       return text.trim();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(`[Feishu] ❌ Content Parse Error!`, e);
       return '';
     }
@@ -417,22 +471,15 @@ export class FeishuClient {
           app_secret: this.config.app_secret,
         },
       });
-      const token = (res as any)?.data?.tenant_access_token || (res as any)?.tenant_access_token;
-      const expiresInRaw =
-        (res as any)?.data?.expire ||
-        (res as any)?.data?.expires_in ||
-        (res as any)?.data?.expire_in ||
-        (res as any)?.expire ||
-        (res as any)?.expires_in ||
-        (res as any)?.expire_in;
-      const expiresIn = expiresInRaw ? Number(expiresInRaw) : 0;
+      const { token, expiresIn } = parseTenantTokenResponse(res);
       if (!token) {
         this.refreshTenantTokenPromise = undefined;
         throw new Error(`[Feishu] Failed to refresh tenant token: ${JSON.stringify(res)}`);
       }
       this.tenantToken = token;
-      if (expiresIn > 0) {
-        this.tenantTokenExpiresAt = Date.now() + expiresIn * 1000;
+      const expiresSec = expiresIn ?? 0;
+      if (expiresSec > 0) {
+        this.tenantTokenExpiresAt = Date.now() + expiresSec * 1000;
       } else {
         this.tenantTokenExpiresAt = undefined;
       }
@@ -442,11 +489,13 @@ export class FeishuClient {
     return this.refreshTenantTokenPromise;
   }
 
-  private shouldRefreshTenantToken(error: any): boolean {
-    const data = error?.response?.data || error?.data;
-    const code = data?.code;
-    const msg = String(data?.msg || data?.message || error?.message || '');
-    if ([99991663, 99991664, 99991665, 99991671, 99991672, 99991673].includes(code)) {
+  private shouldRefreshTenantToken(error: unknown): boolean {
+    const top = isRecord(error) ? error : {};
+    const response = getNestedRecord(top, 'response');
+    const data = (response && getNestedRecord(response, 'data')) || getNestedRecord(top, 'data');
+    const code = typeof data?.code === 'number' ? data.code : undefined;
+    const msg = String(data?.msg || data?.message || getErrorMessage(error) || '');
+    if (code !== undefined && [99991663, 99991664, 99991665, 99991671, 99991672, 99991673].includes(code)) {
       return true;
     }
     if (
@@ -454,18 +503,20 @@ export class FeishuClient {
     ) {
       return true;
     }
-    if (error?.response?.status === 401) return true;
+    if (response?.status === 401) return true;
     return false;
   }
 
-  private async requestOptions(): Promise<any | undefined> {
+  private async requestOptions(): Promise<TenantRequestOptions | undefined> {
     if (!this.tenantToken || this.isTenantTokenExpired()) {
       await this.refreshTenantToken();
     }
     return this.tenantToken ? lark.withTenantToken(this.tenantToken) : undefined;
   }
 
-  private async runWithTenantRetry<T>(fn: (options?: any) => Promise<T>): Promise<T> {
+  private async runWithTenantRetry<T>(
+    fn: (options?: TenantRequestOptions) => Promise<T>,
+  ): Promise<T> {
     const options = await this.requestOptions();
     try {
       return await fn(options);
@@ -485,21 +536,25 @@ export class FeishuClient {
     contentJson: string,
     chatId: string,
   ): Promise<FilePartInput | null> {
-    let content: any;
+    let content: Record<string, unknown>;
 
     console.info('buildFilePart prams', { messageId, msgType, contentJson, chatId });
 
     try {
-      content = JSON.parse(contentJson);
+      const parsed = JSON.parse(contentJson);
+      if (!isRecord(parsed)) return null;
+      content = parsed;
     } catch {
       return null;
     }
 
-    const fileKey = content.file_key || content.image_key || content.fileKey || content.imageKey;
+    const fileKeyRaw = content.file_key || content.image_key || content.fileKey || content.imageKey;
+    const fileKey = typeof fileKeyRaw === 'string' ? fileKeyRaw : '';
     if (!fileKey) return null;
 
+    const fileNameRaw = content.file_name || content.name || content.fileName;
     const fileName =
-      content.file_name || content.name || content.fileName || `${msgType}-${fileKey}`;
+      typeof fileNameRaw === 'string' && fileNameRaw ? fileNameRaw : `${msgType}-${fileKey}`;
 
     let progressMsgId: string | null = null;
     const progressMap: Map<string, string> =
@@ -512,12 +567,16 @@ export class FeishuClient {
         `[Feishu] 📦 Download resource start: msg=${messageId} type=${msgType} key=${fileKey} name=${fileName}`,
       );
       const maxSizeMb =
-        (globalState.__bridge_max_file_size?.get?.(chatId) as number) ?? DEFAULT_MAX_FILE_MB;
+        globalState.__bridge_max_file_size?.get(chatId) ?? DEFAULT_MAX_FILE_MB;
       const maxBytes = Math.floor(maxSizeMb * 1024 * 1024);
 
-      let res: any;
+      let res: {
+        buffer: Buffer;
+        mime?: string;
+        headers?: Record<string, unknown>;
+      } | null = null;
       const maxRetry =
-        (globalState.__bridge_max_file_retry?.get?.(chatId) as number) ?? DEFAULT_MAX_FILE_RETRY;
+        globalState.__bridge_max_file_retry?.get(chatId) ?? DEFAULT_MAX_FILE_RETRY;
 
       if (maxRetry > 0) {
         progressMsgId = await this.sendMessage(
@@ -549,6 +608,8 @@ export class FeishuClient {
         }
       }
 
+      if (!res) return null;
+
       const contentLengthRaw = res.headers?.['content-length'];
       const contentLength = contentLengthRaw ? Number(contentLengthRaw) : 0;
 
@@ -577,7 +638,7 @@ export class FeishuClient {
         return null;
       }
 
-      const buf = res.buffer as Buffer;
+      const buf = res.buffer;
 
       if (buf.length > maxBytes) {
         await this.sendMessage(
@@ -630,9 +691,7 @@ export class FeishuClient {
         ).catch(() => {});
         progressMap.delete(progressKey);
       }
-      const sendError = globalState.__bridge_send_error_message as
-        | ((chatId: string, content: string) => Promise<void>)
-        | undefined;
+      const sendError = globalState.__bridge_send_error_message;
       if (sendError) {
         await sendError(chatId, '资源下载失败，请稍后重试。');
       } else {
@@ -768,7 +827,7 @@ export class FeishuClient {
 
         if (this.isMessageProcessed(messageId)) return;
 
-        const msgType = (message as any).msg_type || (message as any).message_type || 'text';
+        const msgType = getMessageType(message);
         if (msgType === 'text') {
           const text = this.parseAndCleanContent(message.content, message.mentions);
           if (!text) return;
@@ -811,34 +870,59 @@ export class FeishuClient {
           const rawBody = Buffer.concat(chunks).toString('utf8');
           if (!rawBody) return res.end();
 
-          let body: any = JSON.parse(rawBody);
+          let body: Record<string, unknown> = {};
+          const parsed = JSON.parse(rawBody);
+          if (!isRecord(parsed)) {
+            res.writeHead(400);
+            res.end();
+            return;
+          }
+          body = parsed;
 
-          if (body.encrypt && this.config.encrypt_key) {
-            const decrypted = decryptEvent(body.encrypt, this.config.encrypt_key);
-            body = JSON.parse(decrypted);
+          const encrypted = typeof body.encrypt === 'string' ? body.encrypt : '';
+          if (encrypted && this.config.encrypt_key) {
+            const decrypted = decryptEvent(encrypted, this.config.encrypt_key);
+            const decryptedBody = JSON.parse(decrypted);
+            if (!isRecord(decryptedBody)) {
+              res.writeHead(400);
+              res.end();
+              return;
+            }
+            body = decryptedBody;
           }
 
           if (body.type === 'url_verification') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ challenge: body.challenge }));
+            return res.end(
+              JSON.stringify({
+                challenge: typeof body.challenge === 'string' ? body.challenge : '',
+              }),
+            );
           }
 
-          if (body.header?.event_type === 'im.message.receive_v1') {
+          const header = getNestedRecord(body, 'header');
+          if (header?.event_type === 'im.message.receive_v1') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ code: 0 }));
 
-            const event = body.event;
-            const messageId = event.message?.message_id;
-            const chatId = event.message?.chat_id;
-            const senderId = event.sender?.sender_id?.open_id || '';
+            const event = getNestedRecord(body, 'event');
+            const eventMessage = event ? getNestedRecord(event, 'message') : undefined;
+            const eventSender = event ? getNestedRecord(event, 'sender') : undefined;
+            const senderID = eventSender ? getNestedRecord(eventSender, 'sender_id') : undefined;
+            const messageId =
+              typeof eventMessage?.message_id === 'string' ? eventMessage.message_id : '';
+            const chatId = typeof eventMessage?.chat_id === 'string' ? eventMessage.chat_id : '';
+            const senderId = typeof senderID?.open_id === 'string' ? senderID.open_id : '';
 
             if (messageId && chatId && !this.isMessageProcessed(messageId)) {
-              const msgType = event.message?.message_type || event.message?.msg_type || 'text';
+              const msgType = getMessageType(eventMessage);
+              const content =
+                typeof eventMessage?.content === 'string' ? eventMessage.content : '{}';
+              const mentions = Array.isArray(eventMessage?.mentions)
+                ? (eventMessage.mentions as MentionLike[])
+                : undefined;
               if (msgType === 'text') {
-                const text = this.parseAndCleanContent(
-                  event.message.content,
-                  event.message.mentions,
-                );
+                const text = this.parseAndCleanContent(content, mentions);
                 if (text) {
                   console.log(
                     `[Feishu] 📥 webhook text chat=${chatId} msg=${messageId} sender=${senderId} len=${text.length}`,
@@ -851,7 +935,7 @@ export class FeishuClient {
                 const part = await this.buildFilePart(
                   messageId,
                   msgType,
-                  event.message.content,
+                  content,
                   chatId,
                 );
                 if (!part) return;

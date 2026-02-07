@@ -11,21 +11,27 @@ import { startGlobalEventListener, createIncomingHandler } from './src/handler';
 import { FeishuAdapter } from './src/feishu/feishu.adapter';
 import type { FeishuConfig, BridgeAdapter } from './src/types';
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 // isEnabled
-function isEnabled(cfg: Config, key: string): boolean {
+function isEnabled(cfg: Config | undefined, key: string): boolean {
   const node = cfg?.agent?.[key];
   if (!node) return false;
   if (node.disable === true) return false;
   return true;
 }
 
-function parseFeishuConfig(cfg: Config): FeishuConfig {
+function parseFeishuConfig(cfg: Config | undefined): FeishuConfig {
   const node = cfg?.agent?.[AGENT_LARK];
-  const options = (node?.options || {}) as Record<string, any>;
+  const options = asRecord(node?.options);
 
-  const app_id = options.app_id;
-  const app_secret = options.app_secret;
-  const mode = (options.mode || 'ws') as 'ws' | 'webhook';
+  const app_id = typeof options.app_id === 'string' ? options.app_id : '';
+  const app_secret = typeof options.app_secret === 'string' ? options.app_secret : '';
+  const mode = options.mode === 'webhook' ? 'webhook' : 'ws';
   const callbackUrlRaw = options.callback_url;
   const callbackUrl =
     typeof callbackUrlRaw === 'string' && callbackUrlRaw.length > 0
@@ -47,9 +53,7 @@ function parseFeishuConfig(cfg: Config): FeishuConfig {
     app_secret,
     mode,
     callback_url: callbackUrl,
-    encrypt_key: options.encrypt_key,
-    tenant_token: options.tenant_token,
-    disable_token_cache: options.disable_token_cache,
+    encrypt_key: typeof options.encrypt_key === 'string' ? options.encrypt_key : undefined,
   };
 }
 
@@ -60,7 +64,7 @@ export const BridgePlugin: Plugin = async ctx => {
   const bootstrap = async () => {
     try {
       const raw = await client.config.get();
-      const cfg = (raw?.data || raw || {}) as Config;
+      const cfg = raw?.data;
 
       // mux 单例
       const mux: AdapterMux = globalState.__bridge_mux || new AdapterMux();

@@ -1,8 +1,7 @@
 // src/types.ts
+import type { FilePartInput, TextPartInput } from '@opencode-ai/sdk';
 
 export type BridgeMode = 'ws' | 'webhook';
-
-import type { FilePartInput, TextPartInput } from '@opencode-ai/sdk';
 
 export type IncomingMessageHandler = (
   chatId: string,
