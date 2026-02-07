@@ -174,49 +174,11 @@ npm install message-bridge-opencode-plugin
 
 - 飞书配置 
 	
-	 [快速开始 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.zh.md)
+	[快速开始 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.zh.md)
 
 - Telegram 配置
 
   [快速开始 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/telegram/GUIDE.zh.md)
-
-```json
-{
-  "agent": {
-    "telegram-bridge": {
-      "options": {
-        "mode": "polling",
-        "bot_token": "123456:your_bot_token",
-        "polling_timeout_sec": "20",
-        "polling_interval_ms": "300"
-      }
-    }
-  }
-}
-```
-
-### Telegram 使用说明
-
-* 轮询模式下，同一个 bot token 同时只能有一个进程执行 `getUpdates`。
-* 如果出现 `Conflict: terminated by other getUpdates request`，请关闭其它实例，或改用 webhook 模式。
-* 如果日志出现 `Unable to connect`，请检查当前机器到 Telegram Bot API 的网络连通性。
-
-- Telegram Webhook 配置
-
-```json
-{
-  "agent": {
-    "telegram-bridge": {
-      "options": {
-        "mode": "webhook",
-        "bot_token": "123456:your_bot_token",
-        "callback_url": "https://your.domain.com/telegram/webhook",
-        "webhook_secret_token": "your_secret_token"
-      }
-    }
-  }
-}
-```
 
 ## 🚧 当前必须使用开发模式
 

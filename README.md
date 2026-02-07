@@ -193,46 +193,6 @@ npm install message-bridge-opencode-plugin
 
 [Quick Start 🔗](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/telegram/GUIDE.md)
 
-```json
-{
-  "agent": {
-    "telegram-bridge": {
-      "options": {
-        "mode": "polling",
-        "bot_token": "123456:your_bot_token",
-        "polling_timeout_sec": "20",
-        "polling_interval_ms": "300"
-      }
-    }
-  }
-}
-```
-
-### Telegram (Bot API - Webhook)
-
-```json
-{
-  "agent": {
-    "telegram-bridge": {
-      "options": {
-        "mode": "webhook",
-        "bot_token": "123456:your_bot_token",
-        "callback_url": "https://your.domain.com/telegram/webhook",
-        "webhook_secret_token": "your_secret_token"
-      }
-    }
-  }
-}
-```
-
-### Telegram Notes
-
-* Only one runtime can call `getUpdates` for the same bot token in polling mode.
-* If you see `Conflict: terminated by other getUpdates request`, stop other instances or switch to webhook mode.
-* If startup log shows `Unable to connect`, check outbound network access to Telegram Bot API.
-
----
-
 ## 🚧 Development Mode Usage (Required for now)
 
 Due to an existing OpenCode issue:
