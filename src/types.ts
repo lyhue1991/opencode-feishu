@@ -30,6 +30,7 @@ export interface FeishuConfig {
   app_secret: string;
   mode: 'ws' | 'webhook';
   callback_url?: string;
+  file_store_dir?: string;
   encrypt_key?: string;
   auto_send_local_files?: boolean;
   auto_send_local_files_max_mb?: number;
@@ -44,6 +45,7 @@ export interface TelegramConfig {
   callback_url?: string;
   webhook_listen_port?: number;
   webhook_secret_token?: string;
+  file_store_dir?: string;
   auto_send_local_files?: boolean;
   auto_send_local_files_max_mb?: number;
   auto_send_local_files_allow_absolute?: boolean;

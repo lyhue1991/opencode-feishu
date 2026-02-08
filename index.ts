@@ -7,6 +7,7 @@ import { bridgeLogger, getBridgeLogFilePath } from './src/logger';
 
 import { AdapterMux } from './src/handler/mux';
 import { startGlobalEventListener, createIncomingHandler } from './src/handler';
+import { setBridgeFileStoreDir } from './src/bridge/file.store';
 
 import { FeishuAdapter } from './src/feishu/feishu.adapter';
 import type { BridgeAdapter } from './src/types';
@@ -41,14 +42,17 @@ export const BridgePlugin: Plugin = async ctx => {
 
       // 允许多个 adapter 同时启用
       const adaptersToStart: Array<{ key: string; create: () => BridgeAdapter }> = [];
+      const storeDirCandidates: string[] = [];
 
       if (isEnabled(cfg, AGENT_LARK)) {
         const feishuCfg = parseFeishuConfig(cfg);
+        if (feishuCfg.file_store_dir) storeDirCandidates.push(feishuCfg.file_store_dir);
         adaptersToStart.push({ key: AGENT_LARK, create: () => new FeishuAdapter(feishuCfg) });
       }
 
       if (isEnabled(cfg, AGENT_TELEGRAM)) {
         const telegramCfg = parseTelegramConfig(cfg);
+        if (telegramCfg.file_store_dir) storeDirCandidates.push(telegramCfg.file_store_dir);
         adaptersToStart.push({
           key: AGENT_TELEGRAM,
           create: () => new TelegramAdapter(telegramCfg),
@@ -64,6 +68,16 @@ export const BridgePlugin: Plugin = async ctx => {
         bridgeLogger.info('[Plugin] no bridge enabled');
         return;
       }
+
+      const uniqueStoreDirs = Array.from(new Set(storeDirCandidates.map(v => v.trim()))).filter(
+        Boolean,
+      );
+      if (uniqueStoreDirs.length > 1) {
+        bridgeLogger.warn(
+          `[Plugin] multiple file_store_dir configured, using first: ${uniqueStoreDirs.join(', ')}`,
+        );
+      }
+      setBridgeFileStoreDir(uniqueStoreDirs[0]);
 
       // 注册 + start（incoming）
       for (const { key, create } of adaptersToStart) {

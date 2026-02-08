@@ -211,6 +211,7 @@ You can configure local file return behavior in `agent.message-bridge.options`:
 * `auto_send_local_files` (`"true"` / `"false"`, default `false`)
 * `auto_send_local_files_max_mb` (default `20`)
 * `auto_send_local_files_allow_absolute` (`"true"` / `"false"`, default `false`)
+* `file_store_dir` (local directory to save inbound uploaded files; supports relative/absolute/`file://` paths; default: `bridge_files`)
 * `webhook_listen_port` (Telegram webhook local listen port, optional; fallback: callback_url port -> `18080`)
 
 ## 🚧 Development Mode Usage (Required for now)

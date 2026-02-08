@@ -196,6 +196,7 @@ npm install message-bridge-opencode-plugin
 * `auto_send_local_files`（`"true"` / `"false"`，默认 `false`）
 * `auto_send_local_files_max_mb`（默认 `20`）
 * `auto_send_local_files_allow_absolute`（`"true"` / `"false"`，默认 `false`）
+* `file_store_dir`（上传文件本地保存目录；支持相对路径/绝对路径/`file://`；默认 `bridge_files`）
 * `webhook_listen_port`（Telegram webhook 本地监听端口，可选；回退顺序：callback_url 端口 -> `18080`）
 
 ## 🚧 当前必须使用开发模式

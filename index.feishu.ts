@@ -15,11 +15,16 @@ export function parseFeishuConfig(cfg: Config | undefined): FeishuConfig {
   const app_secret = typeof options.app_secret === 'string' ? options.app_secret : '';
   const mode = options.mode === 'webhook' ? 'webhook' : 'ws';
   const callbackUrlRaw = options.callback_url;
+  const fileStoreDirRaw = options.file_store_dir;
   const callbackUrl =
     typeof callbackUrlRaw === 'string' && callbackUrlRaw.length > 0
       ? callbackUrlRaw.startsWith('http')
         ? callbackUrlRaw
         : `http://${callbackUrlRaw}`
+      : undefined;
+  const file_store_dir =
+    typeof fileStoreDirRaw === 'string' && fileStoreDirRaw.trim().length > 0
+      ? fileStoreDirRaw.trim()
       : undefined;
 
   if (mode === 'webhook' && !callbackUrl) {
@@ -44,6 +49,7 @@ export function parseFeishuConfig(cfg: Config | undefined): FeishuConfig {
     app_secret,
     mode,
     callback_url: callbackUrl,
+    file_store_dir,
     encrypt_key: typeof options.encrypt_key === 'string' ? options.encrypt_key : undefined,
     auto_send_local_files,
     auto_send_local_files_allow_absolute,

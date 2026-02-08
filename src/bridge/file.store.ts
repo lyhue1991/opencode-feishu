@@ -2,6 +2,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { fileURLToPath } from 'node:url';
 import type { FilePartInput } from '@opencode-ai/sdk';
 import { bridgeLogger } from '../logger';
 
@@ -31,8 +32,37 @@ type SaveResult = {
 const pendingFiles = new Map<string, StoredFileRecord[]>();
 const seenFiles = new Map<string, Map<string, StoredFileRecord>>();
 
-const DEFAULT_STORE_DIR =
-  process.env.BRIDGE_FILE_STORE_DIR || path.join(process.cwd(), 'bridge_files');
+const FALLBACK_STORE_DIR = path.join(process.cwd(), 'bridge_files');
+let configuredStoreDir: string | undefined;
+
+function normalizeStoreDir(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return FALLBACK_STORE_DIR;
+  if (/^file:\/\//i.test(trimmed)) {
+    try {
+      return path.normalize(fileURLToPath(trimmed));
+    } catch {
+      return FALLBACK_STORE_DIR;
+    }
+  }
+  if (path.isAbsolute(trimmed)) return path.normalize(trimmed);
+  return path.normalize(path.resolve(process.cwd(), trimmed));
+}
+
+function getStoreDir(): string {
+  if (configuredStoreDir) return configuredStoreDir;
+  return FALLBACK_STORE_DIR;
+}
+
+export function setBridgeFileStoreDir(rawDir?: string): void {
+  if (!rawDir || !rawDir.trim()) {
+    configuredStoreDir = undefined;
+    bridgeLogger.info(`[FileStore] using default store dir: ${getStoreDir()}`);
+    return;
+  }
+  configuredStoreDir = normalizeStoreDir(rawDir);
+  bridgeLogger.info(`[FileStore] configured store dir: ${configuredStoreDir}`);
+}
 
 function sanitizeSegment(value: string): string {
   return String(value || '')
@@ -91,7 +121,7 @@ async function fileExists(filePath: string): Promise<boolean> {
 
 function buildFilePath(chatKey: string, filename: string, mime: string): string {
   const safeChat = sanitizeSegment(chatKey || 'chat');
-  const baseDir = path.join(DEFAULT_STORE_DIR, safeChat);
+  const baseDir = path.join(getStoreDir(), safeChat);
   const safeName = sanitizeSegment(path.basename(filename || 'file')) || 'file';
   const hasExt = path.extname(safeName);
   const ext = hasExt ? '' : inferExtFromMime(mime);

@@ -15,12 +15,17 @@ export function parseTelegramConfig(cfg: Config | undefined): TelegramConfig {
   }
 
   const callbackUrlRaw = options.callback_url;
+  const fileStoreDirRaw = options.file_store_dir;
 
   const callbackUrl =
     typeof callbackUrlRaw === 'string' && callbackUrlRaw.length > 0
       ? callbackUrlRaw.startsWith('http')
         ? callbackUrlRaw
         : `http://${callbackUrlRaw}`
+      : undefined;
+  const file_store_dir =
+    typeof fileStoreDirRaw === 'string' && fileStoreDirRaw.trim().length > 0
+      ? fileStoreDirRaw.trim()
       : undefined;
 
   const timeoutRaw = Number(options.polling_timeout_sec);
@@ -51,6 +56,7 @@ export function parseTelegramConfig(cfg: Config | undefined): TelegramConfig {
     polling_timeout_sec,
     polling_interval_ms,
     callback_url: callbackUrl,
+    file_store_dir,
     webhook_listen_port,
     auto_send_local_files,
     auto_send_local_files_allow_absolute,

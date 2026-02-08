@@ -93,6 +93,7 @@
   - `auto_send_local_files` (default `false`)
   - `auto_send_local_files_max_mb` (default `20`)
   - `auto_send_local_files_allow_absolute` (default `false`)
+  - `file_store_dir` (custom local storage directory for inbound uploaded files)
   - `webhook_listen_port` (Telegram webhook local listen port; fallback to callback_url port, then `18080`)
 
 ## Feishu Reliability
