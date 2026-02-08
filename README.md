@@ -198,7 +198,7 @@ npm install message-bridge-opencode-plugin
 > It is strongly recommended to use **string values** for all config fields to avoid parsing issues.
 
 ### Feishu / Lark (Webhook mode)
-	 [Quicj Start 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.md)
+[Quicj Start 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.md)
 
 ### Telegram (Bot API - Polling)
 
