@@ -250,7 +250,7 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
     const currentModel = chatModel.get(cacheKey);
     
     // Get default model if no specific model is set
-    let currentModelText: string;
+    let currentModelText = '系统默认';
     if (currentModel) {
       currentModelText = currentModel.name || `${currentModel.providerID}/${currentModel.modelID}`;
     } else {
@@ -259,11 +259,9 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
         const defaults = configRes?.data?.default;
         if (defaults && typeof defaults.model === 'string') {
           currentModelText = defaults.model;
-        } else {
-          currentModelText = '系统默认';
         }
-      } catch {
-        currentModelText = '系统默认';
+      } catch (error) {
+        bridgeLogger.warn('[Command] failed to get default model', error);
       }
     }
 

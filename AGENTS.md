@@ -340,6 +340,6 @@ tail -f logs/bridge.log
 
 ---
 
-**Last Updated**: 2026-02-10
+**Last Updated**: 2026-02-23
 **Plugin Version**: 1.0.0
 **Target OpenCode Version**: 1.1.48+
