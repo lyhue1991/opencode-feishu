@@ -178,7 +178,7 @@ export class FeishuClient {
       appId: config.app_id,
       appSecret: config.app_secret,
       httpInstance,
-      loggerLevel: LoggerLevel.info,
+      loggerLevel: LoggerLevel.error,
     });
 
     this.renderer = new FeishuRenderer();
@@ -1015,7 +1015,7 @@ export class FeishuClient {
     this.wsClient = new lark.WSClient({
       appId: this.config.app_id,
       appSecret: this.config.app_secret,
-      loggerLevel: lark.LoggerLevel.trace,
+      loggerLevel: lark.LoggerLevel.error,
     });
 
     const dispatcher = new lark.EventDispatcher({}).register({

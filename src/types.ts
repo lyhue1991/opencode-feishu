@@ -37,20 +37,6 @@ export interface FeishuConfig {
   auto_send_local_files_allow_absolute?: boolean;
 }
 
-export interface TelegramConfig {
-  mode: 'polling' | 'webhook';
-  bot_token: string;
-  polling_timeout_sec: number;
-  polling_interval_ms: number;
-  callback_url?: string;
-  webhook_listen_port?: number;
-  webhook_secret_token?: string;
-  file_store_dir?: string;
-  auto_send_local_files?: boolean;
-  auto_send_local_files_max_mb?: number;
-  auto_send_local_files_allow_absolute?: boolean;
-}
-
 export type OutgoingFileConfig = {
   enabled: boolean;
   maxMb: number;

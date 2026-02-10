@@ -1,142 +1,52 @@
-# Release Note (2026-02-07)
+# Release Note
 
-## 🚀 Major Addition: Telegram Support
+## Feishu Only Version
 
-- Added **Telegram bridge support** (Bot API):
-  - polling mode
-  - webhook mode
-  - incoming message handling
-  - message send/edit pipeline
-  - slash-command bridge flow
-  - media input support (photo/document/video/audio/voice/animation/sticker)
-
-## Highlights
-
-- Refactored handler flow into smaller modules:
-  - `incoming.flow.ts`
-  - `event.flow.ts`
-  - `execution.flow.ts`
-  - `message.delivery.ts`
-  - `command.ts`
-- Improved execution/tool-step message aggregation behavior to reduce message spam and keep final answer separated.
-- Added stronger runtime/state typing in handler and bridge paths, reducing `any` usage and aligning with SDK event shapes.
-- Improved slash-command support and routing consistency.
-- Telegram follow-up improvements:
-  - command compatibility improvements (including Telegram command filtering)
-  - typing + reaction UX alignment (show loading reaction and clear when response is finalized)
-  - improved retry/edit behavior and lower Telegram edit retry delay for better delivery latency
-  - stronger conflict diagnostics for polling mode (`getUpdates` single-consumer conflict)
-  - fixed reaction cleanup timing in slash-command and non-streaming reply paths
-  - reduced duplicate/no-op edit churn to lower Telegram-side perceived latency
-
-## Slash Command Updates
-
-- Added/updated bridge commands:
-  - `/status`
-  - `/reset` (alias: `/restart`) for runtime reset + new session
-  - `/sessions delete 1,2,3` (batch delete)
-  - `/sessions delete all` (delete all except current)
-  - `/agent` (list)
-  - `/agent <index|name>` (switch)
-  - `/models <providerIndex.modelIndex>` (switch)
-- Improved command help text and command feedback formatting.
-
-## Session / Agent / Model State
-
-- Session/agent/model state handling is now clearer in status output.
-- Model display in status/footer was simplified to reduce noise.
-- `/new` now keeps the last selected agent/model for the same chat binding.
-- New session initialization now defaults to `build` only when no previous agent selection exists.
-- Bugfix ([#2](https://github.com/YuanG1944/message-bridge-opencode-plugin/issues/2)):
-  - fixed `/new` incorrectly clearing existing chat state
-  - now `/new` inherits previous agent/model instead of resetting all state
-
-## Feishu Rendering / UX
-
-- Iterative improvements to execution panel rendering and status rendering.
-- Reduced noisy debug logging while retaining key diagnostic logs.
-
-
-## Documentation
-
-- Updated `README.md` command section to include new/extended command behaviors and examples.
-- Updated `README.md` / `README.zh.md` with Telegram config and support status.
-- Added Telegram config guide:
-  - `config-guide/telegram/GUIDE.md`
-  - `config-guide/telegram/GUIDE.zh.md`
-- Added troubleshooting notes for:
-  - polling conflict (`terminated by other getUpdates request`)
-  - network reachability errors (`Unable to connect`)
+This is a simplified version that only supports Feishu (Lark) platform.
+Telegram and iMessage adapters have been removed.
 
 ---
 
-# Release Note (2026-02-08)
+## Features (Feishu)
 
-## 🚀 File Bridge Enhancements
-
-- Added local-file outbound bridge for Feishu + Telegram:
-  - auto-detect local paths from assistant output
-  - validate/read local files and send as real platform attachments
-  - message-level dedupe to avoid duplicate re-send on edits
-
-## New Commands
-
-- `/sendfile <path>`
-  - force-send a local file via bot without depending on LLM behavior.
-- `/savefile`
-  - enter upload-wait mode; the next uploaded file is saved directly to local disk and returns saved path.
-  - this flow bypasses LLM completely.
-
-## Config Additions
-
-- Added optional bridge config under `agent.message-bridge.options`:
-  - `auto_send_local_files` (default `false`)
-  - `auto_send_local_files_max_mb` (default `20`)
-  - `auto_send_local_files_allow_absolute` (default `false`)
-  - `file_store_dir` (custom local storage directory for inbound uploaded files)
-  - `webhook_listen_port` (Telegram webhook local listen port; fallback to callback_url port, then `18080`)
-
-## Feishu Reliability
-
-- Replaced SDK-first upload path with direct upload calls for attachments.
-- New direct upload helpers were added in `src/feishu/patch.ts` for image/file upload using tenant token.
-- This avoids recurring SDK socket-close failures in file upload path.
-
-## Cross-OS Path Support
-
-- Enhanced local path detection for outbound files:
-  - Unix absolute/relative paths
-  - `file://` URLs
-  - Windows drive paths (`C:\...`)
-  - Windows UNC paths (`\\server\share\...`)
+- Webhook and WebSocket modes
+- Incoming message handling
+- Message send/edit pipeline
+- Slash-command bridge flow
+- File upload/download support
+- Local file return via `/sendfile`
+- Direct file save via `/savefile`
 
 ---
 
-# Release Note (2026-02-09)
+## Supported Commands
 
-## 🐞 Bugfix: Plan-Mode Question Flow
+- `/help` - list custom commands
+- `/models` - list providers and models
+- `/new` - create and bind to a new session
+- `/rename <title>` - rename current session
+- `/abort` - force-abort current session generation
+- `/reset` / `/restart` - reset bridge runtime state
+- `/status` - show runtime status
+- `/sessions` - list and switch sessions
+- `/sessions delete ...` - batch delete sessions
+- `/maxFileSize <xmb>` - set upload file size limit
+- `/maxFileRetry <n>` - set resource download retry count
+- `/savefile` - save uploaded file directly to local path
+- `/sendfile <path>` - force-send a local file back via bot
+- `/share` / `/unshare`
+- `/compact` (alias `/summarize`)
+- `/init`
+- `/agent` - list and switch agents
 
-- Fixed `tool=question` error flow getting stuck in bridge conversations.
-- Added question-proxy handling in bridge runtime:
-  - captures question tool input when tool status is `error`
-  - sends actionable question prompt back to IM chat (Feishu/Telegram)
-  - accepts user reply by index or option text
-  - resumes session with structured answer payload
-- Updated timeout behavior:
-  - no longer auto-continues with defaults
-  - after 15 minutes without reply, pending question is canceled with status notice
-- Added debug logs for real `question` tool payload inspection:
-  - logs `status`, `input`, and `error` (with safe truncation)
-  - logs explicit `payload-parse-failed` when normalization fails
+---
 
+## Configuration
 
-## Command Additions (2026-02-09 Update)
+See `config-guide/lark/GUIDE.md` for Feishu configuration guide.
 
-- Added `/rename <title>` command:
-  - renames the current session title
-  - avoids title collisions by auto-appending numeric suffixes (` (2)`, ` (3)`, ...)
-- Added `/abort` command:
-  - force-aborts current session generation via `session.abort`
-- Question flow stability updates:
-  - invalid option reply now exits `awaiting-user-reply` and continues normal prompt flow
-  - dedupe guard added for repeated question tool call events to prevent re-locking on the same call
+---
+
+## License
+
+MIT License

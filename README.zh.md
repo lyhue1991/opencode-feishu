@@ -1,14 +1,8 @@
-# OpenCode 消息桥插件（Message Bridge）
+# OpenCode 消息桥插件（Message Bridge - Feishu Only）
 
-[English](https://github.com/YuanG1944/message-bridge-opencode-plugin/blob/main/README.md) | [中文](https://github.com/YuanG1944/message-bridge-opencode-plugin/blob/main/README.zh.md)
+`message-bridge-opencode-plugin` 是一个为 **OpenCode Agent** 设计的 **飞书消息桥插件**。
 
----
-
-`message-bridge-opencode-plugin` 是一个为 **OpenCode Agent** 设计的 **通用消息桥插件**。
-它的目标是让 AI Agent 可以通过 **统一的抽象层** 接入多个即时通讯平台。
-
-该项目**最初只用于支持飞书（Feishu / Lark）**，
-在完成稳定实现并经过实际使用验证后，升级为 **通用消息桥方案**，以便未来持续接入更多消息平台。
+该插件仅支持飞书（Feishu / Lark）平台，通过飞书 Bot 实现 AI Agent 与用户的消息互通。
 
 ---
 
@@ -23,30 +17,14 @@
   * 支持 '/' 命令
   * 支持 **Webhook** 与 **WebSocket** 两种模式
   * 适配 OpenCode 插件体系
-* **Telegram（Bot API / 轮询 + Webhook）**
-
-  * 支持接收文本消息
-  * 支持常见媒体消息（图片/文件/视频/音频/语音/贴纸/动图）
-  * 支持流式回复发送与编辑
-  * 支持桥接层 slash 命令流程
-
-### 🚧 开发中（优先级排序）
-
-* **iMessage（下一优先目标）**
-* 其他计划中的平台：
-
-  * QQ
-  * WhatsApp（取决于 API 可用性）
-
-> 插件架构已为多平台扩展做好设计，后续平台会逐步接入。
 
 ---
 
 ## ✨ 特性
 
-* **通用消息抽象**
+* **飞书消息桥接**
 
-  * 一个 OpenCode Agent，对接多个 IM 平台
+  * 一个 OpenCode Agent，对接飞书 Bot
 * **即插即用**
 
   * 完全兼容 OpenCode 插件系统
@@ -57,9 +35,6 @@
 * **配置驱动**
 
   * 所有配置集中在 `opencode.json`
-* **可扩展架构**
-
-  * 新平台接入无需修改 Agent 核心逻辑
 
 ---
 
@@ -104,7 +79,7 @@ UI 相关命令（主题/编辑器/退出等）**不适合聊天场景**，因�
 * `/sessions` → 列出会话（回复 `/sessions <id>` 切换）
 * `/maxFileSize <xmb>` → 设置上传文件大小限制（默认 10MB）
 * `/maxFileRetry <n>` → 设置资源下载重试次数（默认 3）
-* `/savefile` → 进入“直接保存上传文件”模式（不经过大模型）
+* `/savefile` → 进入"直接保存上传文件"模式（不经过大模型）
 * `/sendfile <path>` → 按本地路径强制回传文件
 * `/share` / `/unshare`
 * `/compact`（别名 `/summarize`）
@@ -189,17 +164,12 @@ npm install message-bridge-opencode-plugin
 	
 	[快速开始 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.zh.md)
 
-- Telegram 配置
-
-  [快速开始 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/telegram/GUIDE.zh.md)
-
 可选文件桥配置（`agent.message-bridge.options`）：
 
 * `auto_send_local_files`（`"true"` / `"false"`，默认 `false`）
 * `auto_send_local_files_max_mb`（默认 `20`）
 * `auto_send_local_files_allow_absolute`（`"true"` / `"false"`，默认 `false`）
 * `file_store_dir`（上传文件本地保存目录；支持相对路径/绝对路径/`file://`；默认 `bridge_files`）
-* `webhook_listen_port`（Telegram webhook 本地监听端口，可选；回退顺序：callback_url 端口 -> `18080`）
 
 ## 🚧 当前必须使用开发模式
 
@@ -225,11 +195,6 @@ bun install
 ## 🛣 开发路线图
 
 * [x] 飞书 / Lark（已完成，稳定）
-* [ ] iMessage（优先实现）
-* [x] Telegram（Bot API / 轮询 + Webhook）
-* [ ] Slack
-* [ ] Discord
-* [ ] 统一消息回复 / 会话抽象
 
 ---
 
@@ -237,7 +202,6 @@ bun install
 
 欢迎提交：
 
-* 新平台适配
 * Bug 修复
 * 文档改进
 * 架构与设计讨论

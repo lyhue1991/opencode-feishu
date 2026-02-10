@@ -1,18 +1,8 @@
-# Message Bridge Plugin for OpenCode
+# Message Bridge Plugin for OpenCode (Feishu Only)
 
-[English](https://github.com/YuanG1944/message-bridge-opencode-plugin/blob/main/README.md) | [中文](https://github.com/YuanG1944/message-bridge-opencode-plugin/blob/main/README.zh.md)
+`message-bridge-opencode-plugin` is a **Feishu message bridge plugin** designed for **OpenCode Agent**.
 
----
-
-## English
-
-# Message Bridge Plugin for OpenCode
-
-`message-bridge-opencode-plugin` is a **universal message bridge plugin** designed for **OpenCode Agent**.
-It enables AI Agents to connect with **multiple messaging platforms** through a unified abstraction layer.
-
-The project **initially focused on Feishu (Lark)** integration.
-After validation and real-world usage, it has evolved into a **general-purpose message bridge**, allowing OpenCode Agents to interact with different IM platforms in a consistent way.
+This plugin only supports Feishu (Lark) platform, enabling AI Agents to communicate with users through Feishu Bot.
 
 ---
 
@@ -26,31 +16,14 @@ After validation and real-world usage, it has evolved into a **general-purpose m
   * Supports **Webhook** and **WebSocket** modes
   * Stable message receiving & forwarding
   * Fully compatible with OpenCode plugin system
-* **Telegram (Bot API / Polling + Webhook)**
-
-  * Supports incoming text messages
-  * Supports common media receive (photo/document/video/audio/voice/sticker/animation)
-  * Supports streamed reply send/edit
-  * Supports slash-command flow in bridge
-
-### 🚧 Under Active Development
-
-* **iMessage** (Next priority)
-* Other IM platforms (planned):
-
-  * Slack
-  * Discord
-  * WhatsApp (subject to API availability)
-
-> The architecture is designed to make adding new platforms straightforward and incremental.
 
 ---
 
 ## ✨ Features
 
-* **Universal Message Abstraction**
+* **Feishu Message Bridge**
 
-  * One OpenCode Agent, multiple messaging platforms
+  * One OpenCode Agent, connected to Feishu Bot
 * **Plug & Play**
 
   * Fully compatible with OpenCode plugin system
@@ -61,9 +34,6 @@ After validation and real-world usage, it has evolved into a **general-purpose m
 * **Config-driven**
 
   * All credentials and behavior managed via `opencode.json`
-* **Extensible Architecture**
-
-  * New platforms can be added without changing core agent logic
 
 ---
 
@@ -202,10 +172,6 @@ npm install message-bridge-opencode-plugin
 ### Feishu / Lark (Webhook mode)
 [Quicj Start 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.md)
 
-### Telegram (Bot API - Polling)
-
-[Quick Start 🔗](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/telegram/GUIDE.md)
-
 ### Optional file-bridge options
 
 You can configure local file return behavior in `agent.message-bridge.options`:
@@ -214,7 +180,6 @@ You can configure local file return behavior in `agent.message-bridge.options`:
 * `auto_send_local_files_max_mb` (default `20`)
 * `auto_send_local_files_allow_absolute` (`"true"` / `"false"`, default `false`)
 * `file_store_dir` (local directory to save inbound uploaded files; supports relative/absolute/`file://` paths; default: `bridge_files`)
-* `webhook_listen_port` (Telegram webhook local listen port, optional; fallback: callback_url port -> `18080`)
 
 ## 🚧 Development Mode Usage (Required for now)
 
@@ -243,7 +208,7 @@ cd message-bridge-opencode-plugin
 bun install
 ```
 
-> `bun` is recommended, as OpenCode’s build system is based on it.
+> `bun` is recommended, as OpenCode's build system is based on it.
 
 ### 4️⃣ Get the absolute path
 
@@ -273,11 +238,6 @@ pwd
 ## 🛣 Roadmap
 
 * [x] Feishu / Lark (Production ready)
-* [ ] iMessage (Next milestone)
-* [x] Telegram (Bot API / Polling + Webhook)
-* [ ] Slack
-* [ ] Discord
-* [ ] Unified message reply & threading abstraction
 
 ---
 
@@ -285,7 +245,6 @@ pwd
 
 Contributions are welcome!
 
-* New platform adapters
 * Bug fixes
 * Documentation improvements
 * Design discussions

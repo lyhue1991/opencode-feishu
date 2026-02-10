@@ -2,7 +2,7 @@
 import type { Plugin } from '@opencode-ai/plugin';
 
 import { globalState, isEnabled, runtimeInstanceId } from './src/utils';
-import { AGENT_LARK, AGENT_IMESSAGE, AGENT_TELEGRAM } from './src/constants';
+import { AGENT_LARK } from './src/constants';
 import { bridgeLogger, getBridgeLogFilePath } from './src/logger';
 
 import { AdapterMux } from './src/handler/mux';
@@ -11,10 +11,8 @@ import { setBridgeFileStoreDir } from './src/bridge/file.store';
 
 import { FeishuAdapter } from './src/feishu/feishu.adapter';
 import type { BridgeAdapter } from './src/types';
-import { TelegramAdapter } from './src/telegram/telegram.adapter';
 
 import { parseFeishuConfig } from './index.feishu';
-import { parseTelegramConfig } from './index.telegram';
 
 export const BridgePlugin: Plugin = async ctx => {
   const { client } = ctx;
@@ -48,20 +46,6 @@ export const BridgePlugin: Plugin = async ctx => {
         const feishuCfg = parseFeishuConfig(cfg);
         if (feishuCfg.file_store_dir) storeDirCandidates.push(feishuCfg.file_store_dir);
         adaptersToStart.push({ key: AGENT_LARK, create: () => new FeishuAdapter(feishuCfg) });
-      }
-
-      if (isEnabled(cfg, AGENT_TELEGRAM)) {
-        const telegramCfg = parseTelegramConfig(cfg);
-        if (telegramCfg.file_store_dir) storeDirCandidates.push(telegramCfg.file_store_dir);
-        adaptersToStart.push({
-          key: AGENT_TELEGRAM,
-          create: () => new TelegramAdapter(telegramCfg),
-        });
-      }
-
-      if (isEnabled(cfg, AGENT_IMESSAGE)) {
-        bridgeLogger.info('[Plugin] imessage-bridge enabled (not implemented yet).');
-        // TODO: mux.register(AGENT_IMESSAGE, new IMessageAdapter(...))
       }
 
       if (adaptersToStart.length === 0) {

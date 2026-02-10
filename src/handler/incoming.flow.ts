@@ -13,6 +13,10 @@ import {
   renderReplyHint,
 } from './question.proxy';
 import type { PendingQuestionState } from './question.proxy';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 type SessionContext = { chatId: string; senderId: string };
 type SelectedModel = { providerID: string; modelID: string; name?: string };
@@ -121,6 +125,31 @@ export const createIncomingHandlerWithDeps = (
     if (!slash && text.trim().toLowerCase() === 'ping') {
       await adapter.sendMessage(chatId, 'Pong! ⚡️');
       return;
+    }
+
+    // Handle !bash command
+    const trimmedText = text.trim();
+    if (!slash && trimmedText.startsWith('!')) {
+      const bashCommand = trimmedText.slice(1).trim();
+      if (bashCommand) {
+        bridgeLogger.info(`[Incoming] bash command adapter=${adapterKey} chat=${chatId} cmd=${bashCommand.slice(0, 50)}`);
+        try {
+          const { stdout, stderr } = await execAsync(bashCommand, { timeout: 30000 });
+          const output = stdout || stderr || '(no output)';
+          // Truncate output if too long
+          const maxOutputLength = 4000;
+          const finalOutput = output.length > maxOutputLength 
+            ? output.slice(0, maxOutputLength) + '\n... (output truncated)' 
+            : output;
+          await adapter.sendMessage(chatId, `## Bash Output\n\`\`\`\n${finalOutput}\n\`\`\``);
+          bridgeLogger.info(`[Incoming] bash command completed adapter=${adapterKey} chat=${chatId}`);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          bridgeLogger.error(`[Incoming] bash command failed adapter=${adapterKey} chat=${chatId}`, error);
+          await adapter.sendMessage(chatId, `## Error\nBash command failed:\n\`\`\`\n${errorMsg}\n\`\`\``);
+        }
+        return;
+      }
     }
 
     let reactionId: string | null = null;

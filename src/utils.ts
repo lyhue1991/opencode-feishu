@@ -1,12 +1,7 @@
 // src/utils.ts
 import { Config } from '@opencode-ai/sdk';
 import type { BridgeGlobalState } from './global.state';
-import {
-  AGENT_TELEGRAM,
-  BRIDGE_AGENT_IDS,
-  TELEGRAM_UPDATE_INTERVAL,
-  UPDATE_INTERVAL,
-} from './constants';
+import { BRIDGE_AGENT_IDS, UPDATE_INTERVAL } from './constants';
 
 export const globalState = globalThis as BridgeGlobalState;
 export const runtimeInstanceId = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
@@ -47,8 +42,7 @@ export function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-export function getUpdateIntervalByAdapter(adapterKey?: string): number {
-  if (adapterKey === AGENT_TELEGRAM) return TELEGRAM_UPDATE_INTERVAL;
+export function getUpdateIntervalByAdapter(_adapterKey?: string): number {
   return UPDATE_INTERVAL;
 }
 
