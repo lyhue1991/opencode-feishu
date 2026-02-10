@@ -12,7 +12,7 @@ type SessionListItem = { id: string; title: string };
 type AgentListItem = { id: string; name: string };
 type SelectedModel = { providerID: string; modelID: string; name?: string };
 type NamedRecord = { id?: string; name?: string; title?: string; description?: string };
-type AgentCandidate = AgentListItem & { mode?: string };
+type AgentCandidate = AgentListItem & { mode?: string; hidden?: boolean };
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
@@ -46,7 +46,8 @@ function normalizeAgentCandidate(item: unknown): AgentCandidate | null {
   if (!id) return null;
   const name = nameRaw || id;
   const mode = typeof item.mode === 'string' ? item.mode : undefined;
-  return { id, name, mode };
+  const hidden = typeof item.hidden === 'boolean' ? item.hidden : undefined;
+  return { id, name, mode, hidden };
 }
 
 function isMessageBridgeAgentName(nameOrId: string): boolean {
@@ -58,7 +59,7 @@ function pickUsableAgents(raw: unknown): AgentListItem[] {
   return raw
     .map(normalizeAgentCandidate)
     .filter((a): a is AgentCandidate => a !== null)
-    .filter(a => a.mode !== 'subagent')
+    .filter(a => a.mode !== 'subagent' && a.hidden !== true)
     .filter(a => !isMessageBridgeAgentName(a.id) && !isMessageBridgeAgentName(a.name))
     .map(a => ({ id: a.id, name: a.name }));
 }
