@@ -107,8 +107,35 @@ export const createIncomingHandlerWithDeps = (
     );
 
     const slash = parseSlashCommand(text);
-    const hasText = Boolean(text && text.trim());
     const cacheKey = `${adapterKey}:${chatId}`;
+
+    // Auto-create session on first message to ensure consistent experience
+    const ensureSessionAtStart = async (): Promise<string | undefined> => {
+      let sessionId = deps.sessionCache.get(cacheKey);
+      if (!sessionId) {
+        bridgeLogger.info(`[Incoming] auto-creating session for first message adapter=${adapterKey} chat=${chatId}`);
+        const previousAgent = deps.chatAgent.get(cacheKey);
+        const previousModel = deps.chatModel.get(cacheKey);
+        const uniqueTitle = `[${adapterKey}] Chat ${chatId.slice(-4)} [${new Date().toLocaleTimeString()}]`;
+        const res = await api.session.create({ body: { title: uniqueTitle } });
+        const data = extractData(res);
+        sessionId = isRecord(data) && typeof data.id === 'string' ? data.id : undefined;
+        if (sessionId) {
+          deps.sessionCache.set(cacheKey, sessionId);
+          deps.sessionToAdapterKey.set(sessionId, adapterKey);
+          deps.sessionToCtx.set(sessionId, { chatId, senderId });
+          deps.chatAgent.set(cacheKey, previousAgent || DEFAULT_AGENT_ID);
+          if (previousModel) deps.chatModel.set(cacheKey, previousModel);
+          else deps.chatModel.delete(cacheKey);
+          bridgeLogger.info(`[Incoming] auto-created session=${sessionId}`);
+        }
+      }
+      return sessionId;
+    };
+
+    // Ensure session exists before processing any message
+    await ensureSessionAtStart();
+    const hasText = Boolean(text && text.trim());
     const rawCommand = slash?.command?.toLowerCase();
     const normalizedCommand = normalizeSlashCommand(rawCommand);
     const sessionsArg = slash?.arguments?.trim() || '';

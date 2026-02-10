@@ -244,18 +244,33 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
     const uptimeSec = Math.floor(process.uptime());
     const uptimeMin = Math.floor(uptimeSec / 60);
     const uptimeRemainSec = uptimeSec % 60;
-    const currentSession = sessionCache.get(cacheKey) || '-';
-    const currentAgent = chatAgent.get(cacheKey) || '-';
+    const currentSession = sessionCache.get(cacheKey);
+    const currentAgent = chatAgent.get(cacheKey);
     const currentModel = chatModel.get(cacheKey);
-    const currentModelText = currentModel
-      ? currentModel.name || `${currentModel.providerID}/${currentModel.modelID}`
-      : '-';
+    
+    // Get default model if no specific model is set
+    let currentModelText: string;
+    if (currentModel) {
+      currentModelText = currentModel.name || `${currentModel.providerID}/${currentModel.modelID}`;
+    } else {
+      try {
+        const configRes = await api.config.providers();
+        const defaults = configRes?.data?.default;
+        if (defaults && typeof defaults.model === 'string') {
+          currentModelText = defaults.model;
+        } else {
+          currentModelText = '系统默认';
+        }
+      } catch {
+        currentModelText = '系统默认';
+      }
+    }
 
     const lines: string[] = [];
     lines.push('## Command');
     lines.push('### Bridge Status');
-    lines.push(`- session: ${currentSession}`);
-    lines.push(`- agent: ${currentAgent}`);
+    lines.push(`- session: ${currentSession || '未创建（将自动创建）'}`);
+    lines.push(`- agent: ${currentAgent || '默认'}`);
     lines.push(`- model: ${currentModelText}`);
     lines.push(`- pid: ${pid}`);
     lines.push(`- startedAt: ${startedAt}`);
