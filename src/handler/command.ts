@@ -249,27 +249,31 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
     const currentAgent = chatAgent.get(cacheKey);
     const currentModel = chatModel.get(cacheKey);
     
-    // Get default model if no specific model is set
+    // Determine the actual model in use
     let currentModelText = '系统默认';
     if (currentModel) {
       currentModelText = currentModel.name || `${currentModel.providerID}/${currentModel.modelID}`;
-    } else {
+    } else if (currentSession) {
+      // No explicit model override — check the last assistant message for actual model used
       try {
-        const configRes = await api.config.providers();
-        const defaults = configRes?.data?.default;
-        if (defaults && typeof defaults === 'object') {
-          // defaults is a map of providerID -> modelID, e.g. { "opencode": "big-pickle" }
-          const entries = Object.entries(defaults).filter(
-            ([, v]) => typeof v === 'string' && v,
-          );
-          if (entries.length > 0) {
-            currentModelText = entries
-              .map(([provider, model]) => `${provider}/${model}`)
-              .join(', ');
+        const msgRes = await api.session.messages({
+          path: { id: currentSession },
+          query: { limit: 20 },
+        });
+        const messages = msgRes?.data;
+        if (Array.isArray(messages)) {
+          // Find the last assistant message (iterate from end)
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const info = messages[i]?.info;
+            if (info && info.role === 'assistant' && 'modelID' in info) {
+              const assistantMsg = info as { modelID: string; providerID: string };
+              currentModelText = `${assistantMsg.providerID}/${assistantMsg.modelID}`;
+              break;
+            }
           }
         }
       } catch (error) {
-        bridgeLogger.warn('[Command] failed to get default model', error);
+        bridgeLogger.warn('[Command] failed to get session messages for model info', error);
       }
     }
 
