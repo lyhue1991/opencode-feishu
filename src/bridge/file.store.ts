@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { fileURLToPath } from 'node:url';
-import type { FilePartInput } from '@opencode-ai/sdk';
+import type { FilePartInput, TextPartInput } from '@opencode-ai/sdk';
 import { bridgeLogger } from '../logger';
 
 export type StoredFileRecord = {
@@ -217,25 +217,37 @@ export async function saveFilePartToLocal(
   }
 }
 
-export async function drainPendingFileParts(chatKey: string): Promise<FilePartInput[]> {
+export async function drainPendingFileParts(chatKey: string): Promise<Array<TextPartInput | FilePartInput>> {
   const list = pendingFiles.get(chatKey) || [];
   pendingFiles.delete(chatKey);
   if (list.length > 0) {
     bridgeLogger.info(`[FileStore] 📤 draining ${list.length} file(s) chat=${chatKey}`);
   }
 
-  const parts: FilePartInput[] = [];
+  const parts: Array<TextPartInput | FilePartInput> = [];
   for (const record of list) {
     try {
       const buffer = await fs.readFile(record.path);
-      const dataUrl = `data:${record.mime};base64,${buffer.toString('base64')}`;
-      parts.push({
-        type: 'file',
-        mime: record.mime,
-        filename: record.filename,
-        url: dataUrl,
-      });
-      bridgeLogger.info(`[FileStore] ✅ queued for prompt path=${record.path}`);
+
+      // text/* MIME types (e.g. text/html) are rejected by the AI model as FilePartInput.
+      // Convert them to TextPartInput instead.
+      if (record.mime.startsWith('text/')) {
+        const textContent = buffer.toString('utf-8');
+        parts.push({
+          type: 'text',
+          text: `[File: ${record.filename}]\n${textContent}`,
+        });
+        bridgeLogger.info(`[FileStore] ✅ queued as text (${record.mime}) path=${record.path}`);
+      } else {
+        const dataUrl = `data:${record.mime};base64,${buffer.toString('base64')}`;
+        parts.push({
+          type: 'file',
+          mime: record.mime,
+          filename: record.filename,
+          url: dataUrl,
+        });
+        bridgeLogger.info(`[FileStore] ✅ queued as file path=${record.path}`);
+      }
     } catch {
       bridgeLogger.warn(`[FileStore] ⚠️ missing file on disk, skip: ${record.path}`);
       // ignore missing file, but keep moving

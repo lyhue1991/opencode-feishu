@@ -379,31 +379,22 @@ export const createIncomingHandlerWithDeps = (
             `[Incoming] file-only adapter=${adapterKey} chat=${chatId} saved=${saved.length} duplicated=${duplicated.length} failed=${failed}`,
           );
 
-          // If all files failed, show error and return
-          if (saved.length === 0 && duplicated.length === 0) {
-            const content = '## Status\n❌ 文件上传失败，请重试。';
-            const progressMap: Map<string, string> | undefined =
-              globalState.__bridge_progress_msg_ids;
-            const progressKey = messageId;
-            const progressMsgId = progressMap?.get(progressKey);
-            if (progressMsgId && adapter.editMessage) {
-              const ok = await adapter.editMessage(chatId, progressMsgId, content);
-              if (ok) {
-                progressMap?.delete(progressKey);
-                return;
-              }
-            }
-            await adapter.sendMessage(chatId, content);
-            return;
+          // Clean up the progress message left by buildFilePart
+          const progressMap: Map<string, string> | undefined =
+            globalState.__bridge_progress_msg_ids;
+          const progressKey = messageId;
+          const progressMsgId = progressMap?.get(progressKey);
+          if (progressMsgId && adapter.editMessage) {
+            const status =
+              saved.length > 0 || duplicated.length > 0
+                ? '## Status\n✅ 已接收，请发送指令。'
+                : '## Status\n❌ 文件上传失败，请重试。';
+            await adapter.editMessage(chatId, progressMsgId, status).catch(() => {});
+            progressMap?.delete(progressKey);
           }
 
-          // Auto-prompt: send file-only messages directly to the AI
-          // instead of waiting for a follow-up text instruction
-          bridgeLogger.info(
-            `[Incoming] file-only auto-prompt adapter=${adapterKey} chat=${chatId} files=${saved.length + duplicated.length}`,
-          );
-          text = '请查看用户发送的图片/文件。';
-          // Fall through to prompt logic below
+          // Files enqueued, wait for next text message to drain them
+          return;
         }
       }
 
