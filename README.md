@@ -1,255 +1,210 @@
-# Message Bridge Plugin for OpenCode (Feishu Only)
+# OpenCode 消息桥插件（Message Bridge - Feishu Only）
 
-`message-bridge-opencode-plugin` is a **Feishu message bridge plugin** designed for **OpenCode Agent**.
+`message-bridge-opencode-plugin` 是一个为 **OpenCode Agent** 设计的 **飞书消息桥插件**。
 
-This plugin only supports Feishu (Lark) platform, enabling AI Agents to communicate with users through Feishu Bot.
-
----
-
-## ✨ Current Status
-
-### ✅ Fully Supported
-
-* **Feishu / Lark**
-
-  * Production-ready
-  * Supports **Webhook** and **WebSocket** modes
-  * Stable message receiving & forwarding
-  * Fully compatible with OpenCode plugin system
+该插件仅支持飞书（Feishu / Lark）平台，通过飞书 Bot 实现 AI Agent 与用户的消息互通。
 
 ---
 
-## ✨ Features
+## ✨ 当前状态
 
-* **Feishu Message Bridge**
+### ✅ 已完全支持
 
-  * One OpenCode Agent, connected to Feishu Bot
-* **Plug & Play**
+* **飞书 / Feishu / Lark**
 
-  * Fully compatible with OpenCode plugin system
-* **Multiple Communication Modes**
-
-  * `webhook` – Recommended for production
-  * `ws` (WebSocket) – Ideal for local development (no public IP required)
-* **Config-driven**
-
-  * All credentials and behavior managed via `opencode.json`
+  * 功能完整、稳定
+  * 支持图片/文件解析
+  * 支持 '/' 命令
+  * 支持 **Webhook** 与 **WebSocket** 两种模式
+  * 适配 OpenCode 插件体系
 
 ---
 
-## ✅ Slash Command Support
+## ✨ 特性
 
-This plugin **implements key slash commands via OpenCode APIs**, and **falls back to `session.command`** for custom commands.
-UI-only commands (theme/editor/exit, etc.) are **not supported in chat**.
+* **飞书消息桥接**
 
-### Built-in Slash Commands (TUI)
+  * 一个 OpenCode Agent，对接飞书 Bot
+* **即插即用**
 
-From the official TUI docs, the built-in commands include:
+  * 完全兼容 OpenCode 插件系统
+* **多通信模式**
+
+  * `webhook`：推荐用于生产环境
+  * `ws`（WebSocket）：适合本地开发调试，无需公网 IP
+* **配置驱动**
+
+  * 所有配置集中在 `opencode.json`
+
+---
+
+## ✅ Slash 命令支持
+
+本插件**优先用 OpenCode API 实现关键命令**，其余自定义命令再走 `session.command`。
+UI 相关命令（主题/编辑器/退出等）**不适合聊天场景**，因此不支持。
+
+### 官方内置命令（TUI）
+
+根据官方 TUI 文档，内置命令包括：
 
 * `/connect`
-* `/compact` (alias: `/summarize`)
+* `/compact`（别名：`/summarize`）
 * `/details`
 * `/editor`
-* `/exit` (aliases: `/quit`, `/q`)
+* `/exit`（别名：`/quit`、`/q`）
 * `/export`
 * `/help`
 * `/init`
 * `/models`
-* `/new` (alias: `/clear`)
-* `/reset` (alias: `/restart`)
+* `/new`（别名：`/clear`）
 * `/redo`
-* `/sessions` (aliases: `/resume`, `/continue`)
+* `/sessions`（别名：`/resume`、`/continue`）
 * `/share`
 * `/theme`
 * `/thinking`
 * `/undo`
 * `/unshare`
-* `/status`
 * `/maxFileSize`
 * `/maxFileRetry`
-* `/agent`
 
-### Bridge-Handled Commands
+### 已适配的命令
 
-These are implemented directly against OpenCode APIs:
+以下命令在桥接层通过 API 直接实现：
 
-* `/help` → list custom commands
-* `/models` → list providers and models (`/models <providerIndex.modelIndex>` to switch)
-* `/new` → create and bind to a new session
-* `/rename <title>` → rename current session (auto-add suffix like ` (2)` if duplicated)
-* `/abort` → force-abort current session generation
-* `/reset` / `/restart` → reset bridge runtime state and create a new session
-* `/status` → show runtime status (session / agent / model / pid / uptime)
-* `/sessions` → list sessions (reply with `/sessions <id>` or `/sessions <index>` to bind)
-* `/sessions delete 1,2,3` → batch delete sessions by index/id
-* `/sessions delete all` → delete all sessions except current one
-* `/maxFileSize <xmb>` → set upload file size limit (default 10MB)
-* `/maxFileRetry <n>` → set resource download retry count (default 3)
-* `/savefile` → ask user to upload file and save directly to local path (without LLM)
-* `/sendfile <path>` → force-send a local file back via bot
+* `/help` → 列出自定义命令
+* `/models` → 列出 provider 与模型
+* `/new` → 创建并绑定新会话
+* `/rename <title>` → 重命名当前会话（若重名自动追加 ` (2)`、` (3)`）
+* `/abort` → 强制终止当前会话生成
+* `/sessions` → 列出会话（回复 `/sessions <id>` 切换）
+* `/maxFileSize <xmb>` → 设置上传文件大小限制（默认 10MB）
+* `/maxFileRetry <n>` → 设置资源下载重试次数（默认 3）
+* `/savefile` → 进入"直接保存上传文件"模式（不经过大模型）
+* `/sendfile <path>` → 按本地路径强制回传文件
 * `/share` / `/unshare`
-* `/compact` (alias `/summarize`)
+* `/compact`（别名 `/summarize`）
 * `/init`
-* `/agent` → list available agents
-* `/agent <index|name>` → bind agent for future prompts
+* `/agent <name>` → 绑定后续对话的 Agent
 
-### UI-Only Commands (Not Supported in Chat)
+### UI 命令（聊天不支持）
 
 * `/connect`
 * `/details`
 * `/editor`
 * `/export`
-* `/exit` (`/quit`, `/q`)
+* `/exit`（`/quit`、`/q`）
 * `/theme`
 * `/thinking`
 
-### Custom Commands
+### 自定义命令
 
-Custom commands are supported via:
+支持以下方式定义自定义命令：
 
-* `opencode.json` under `command`, or
-* `.opencode/commands/*.md` files.
+* `opencode.json` 中的 `command` 字段，或
+* `.opencode/commands/*.md` 文件。
 
-### Session / Agent Switching
+### 会话 / Agent 切换
 
-Session switching via `/sessions` is fully supported. The list is returned to the chat, and you can reply with `/sessions <id>` **or** `/sessions <index>` to bind this chat to the chosen session.
-Session batch deletion is supported via `/sessions delete ...`, and `/sessions delete all` keeps the current active session.
-File upload size limit can be adjusted per chat with `/maxFileSize <xmb>` (default 10MB).
+`/sessions` 会返回会话列表与可选项，结果会直接回到聊天窗口，你只需回复 `/sessions <id>` **或** `/sessions <序号>` 即可切换并绑定到目标会话。
+文件上传大小限制可通过 `/maxFileSize <xmb>` 调整（默认 10MB）。
 
-If your OpenCode setup provides additional slash commands, they will still be forwarded via `session.command` unless explicitly handled above.
+如果你的 OpenCode 环境提供了其它 slash 命令，且未在上面专门适配，则仍会走 `session.command` 透传。
 
-### Local File Return / Save (No-LLM path)
+### 本地文件直传/直存（不走 LLM）
 
-This bridge supports two direct file operations:
+插件提供两条直接文件能力：
 
-* `/sendfile <path>`: force-send a local file by path.
-* `/savefile`: enter upload mode; the next uploaded file is saved to local disk and the saved path is returned.
+* `/sendfile <path>`：根据本地路径直接通过 Bot 回传文件。
+* `/savefile`：进入上传等待态；你下一条上传的文件会直接保存到本地并返回路径。
 
-These flows bypass LLM reasoning and are handled directly by bridge adapters.
+以上流程都由桥接层直接处理，不经过大模型。
 
 ---
 
-## 🧾 Logging
+## 🧾 日志配置
 
-The bridge now uses a unified logger and writes logs to file by default.
+桥接日志已统一收口到同一套 logger，并默认写入文件。
 
-Environment variables:
+可用环境变量：
 
-* `BRIDGE_LOG_FILE` - custom log file path (default: `logs/bridge.log`)
-* `BRIDGE_LOG_STDOUT` - enable/disable terminal log output (`true` by default)
-* `BRIDGE_DEBUG` - enable debug-level logs (`false` by default)
+* `BRIDGE_LOG_FILE`：自定义日志文件路径（默认：`logs/bridge.log`）
+* `BRIDGE_LOG_STDOUT`：是否输出到终端（默认 `true`）
+* `BRIDGE_DEBUG`：是否开启 debug 级别日志（默认 `false`）
 
-Example:
+示例：
 
 ```bash
 BRIDGE_DEBUG=true BRIDGE_LOG_FILE=/tmp/bridge.log opencode web
 ```
 
-You can also check the current log path via `/status` (`logFile` field).
+也可以通过 `/status` 查看当前日志路径（`logFile` 字段）。
 
 ---
 
-## 📦 Installation
+## 📦 安装
 
-Inside your OpenCode Agent config directory:
+在 OpenCode Agent 配置目录中执行：
 
 ```bash
 npm install message-bridge-opencode-plugin
 ```
 
-> ⚠️ Due to a known OpenCode issue, installing directly from npm may not work at the moment.
-> See **Development Mode Usage** below.
+> ⚠️ 由于 OpenCode 当前存在已知问题，暂时需要使用开发模式，详见下文。
 
 ---
 
-## 🚀 Quick Start
+## 🚀 快速开始
 
-### ⚙️ Configuration (`opencode.json`)
+### ⚙️ 配置 (`opencode.json`)
 
-> **Important:**
-> It is strongly recommended to use **string values** for all config fields to avoid parsing issues.
+> **注意：**
+> 强烈建议所有配置项均使用 **字符串类型**，以避免解析问题。
 
-### Feishu / Lark (Webhook mode)
-[Quicj Start 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.md)
+- 飞书配置 
+	
+	[快速开始 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.zh.md)
 
-### Optional file-bridge options
+可选文件桥配置（`agent.message-bridge.options`）：
 
-You can configure local file return behavior in `agent.message-bridge.options`:
+* `auto_send_local_files`（`"true"` / `"false"`，默认 `false`）
+* `auto_send_local_files_max_mb`（默认 `20`）
+* `auto_send_local_files_allow_absolute`（`"true"` / `"false"`，默认 `false`）
+* `file_store_dir`（上传文件本地保存目录；支持相对路径/绝对路径/`file://`；默认 `bridge_files`）
 
-* `auto_send_local_files` (`"true"` / `"false"`, default `false`)
-* `auto_send_local_files_max_mb` (default `20`)
-* `auto_send_local_files_allow_absolute` (`"true"` / `"false"`, default `false`)
-* `file_store_dir` (local directory to save inbound uploaded files; supports relative/absolute/`file://` paths; default: `bridge_files`)
+## 🚧 当前必须使用开发模式
 
-## 🚧 Development Mode Usage (Required for now)
-
-Due to an existing OpenCode issue:
+由于 OpenCode 官方当前存在以下问题：
 
 > **Issue:** `fn3 is not a function`
 > [https://github.com/anomalyco/opencode/issues/7792](https://github.com/anomalyco/opencode/issues/7792)
 
-The plugin must currently be used in **local development mode**.
+暂时无法直接通过 npm 包使用插件，需要使用本地开发模式。
 
-### 1️⃣ Clone the repository
+### 使用步骤
 
 ```bash
 git clone https://github.com/YuanG1944/message-bridge-opencode-plugin.git
-```
-
-### 2️⃣ Enter the directory
-
-```bash
 cd message-bridge-opencode-plugin
-```
-
-### 3️⃣ Install dependencies
-
-```bash
 bun install
 ```
 
-> `bun` is recommended, as OpenCode's build system is based on it.
-
-### 4️⃣ Get the absolute path
-
-```bash
-pwd
-# /your/path/message-bridge-opencode-plugin
-```
-
-### 5️⃣ Reference it in `opencode.json`
-
-```json
-{
-  "plugin": ["/your/path/message-bridge-opencode-plugin"],
-  "agent": {
-    "message-bridge": {
-      "options": {
-        "platform": "feishu",
-        "mode": "webhook"
-      }
-    }
-  }
-}
-```
+在 `opencode.json` 中引用本地路径即可。
 
 ---
 
-## 🛣 Roadmap
+## 🛣 开发路线图
 
-* [x] Feishu / Lark (Production ready)
+* [x] 飞书 / Lark（已完成，稳定）
 
 ---
 
-## 🤝 Contributing
+## 🤝 参与贡献
 
-Contributions are welcome!
+欢迎提交：
 
-* Bug fixes
-* Documentation improvements
-* Design discussions
-
-Feel free to open an Issue or Pull Request.
+* Bug 修复
+* 文档改进
+* 架构与设计讨论
 
 ---
 
