@@ -4,21 +4,28 @@ import * as path from 'node:path';
 export type BridgeLogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
 // 检测 OpenCode 运行模式
-function detectOpencodeMode(): 'web' | 'tui' | 'unknown' {
+function detectOpencodeMode(): 'web' | 'tui' | 'serve' | 'unknown' {
+  const args = process.argv.slice(1).join(' ').toLowerCase();
+  const title = process.title.toLowerCase();
+
   // 检查环境变量
   if (process.env.OPENCODE_MODE) {
     const mode = String(process.env.OPENCODE_MODE).toLowerCase();
+    if (mode.includes('serve')) return 'serve';
     if (mode.includes('web')) return 'web';
-    if (mode.includes('tui')) return 'tui';
+    if (mode.includes('tui')) {
+      if (args.includes('serve')) return 'serve';
+      return 'tui';
+    }
   }
 
   // 检查进程参数
-  const args = process.argv.slice(1).join(' ').toLowerCase();
+  if (args.includes('serve')) return 'serve';
   if (args.includes('web')) return 'web';
   if (args.includes('tui')) return 'tui';
 
   // 检查进程标题
-  const title = process.title.toLowerCase();
+  if (title.includes('serve')) return 'serve';
   if (title.includes('web')) return 'web';
   if (title.includes('tui')) return 'tui';
 
