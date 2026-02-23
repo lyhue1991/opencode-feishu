@@ -378,41 +378,32 @@ export const createIncomingHandlerWithDeps = (
           bridgeLogger.info(
             `[Incoming] file-only adapter=${adapterKey} chat=${chatId} saved=${saved.length} duplicated=${duplicated.length} failed=${failed}`,
           );
-          const lines: string[] = [];
-          if (saved.length > 0 && failed === 0 && duplicated.length === 0) {
-            lines.push(
-              `## Status\n✅ 图片/文件保存成功：\n${saved
-                .map(p => `- ${p}`)
-                .join('\n')}\n⏳ 等候指令。`,
-            );
-          } else if (saved.length === 0 && duplicated.length === 0) {
-            lines.push('## Status\n❌ 文件上传失败，请重试。');
-          } else {
-            lines.push('## Status');
-            if (saved.length > 0) {
-              lines.push(`✅ 已保存：\n${saved.map(p => `- ${p}`).join('\n')}`);
+
+          // If all files failed, show error and return
+          if (saved.length === 0 && duplicated.length === 0) {
+            const content = '## Status\n❌ 文件上传失败，请重试。';
+            const progressMap: Map<string, string> | undefined =
+              globalState.__bridge_progress_msg_ids;
+            const progressKey = messageId;
+            const progressMsgId = progressMap?.get(progressKey);
+            if (progressMsgId && adapter.editMessage) {
+              const ok = await adapter.editMessage(chatId, progressMsgId, content);
+              if (ok) {
+                progressMap?.delete(progressKey);
+                return;
+              }
             }
-            if (duplicated.length > 0) {
-              lines.push(`🟡 已存在，未重复入队：\n${duplicated.map(p => `- ${p}`).join('\n')}`);
-            }
-            if (failed > 0) lines.push('❌ 部分文件上传失败，请重试。');
+            await adapter.sendMessage(chatId, content);
+            return;
           }
 
-          const content = lines.join('\n');
-          const progressMap: Map<string, string> | undefined =
-            globalState.__bridge_progress_msg_ids;
-          const progressKey = messageId;
-          const progressMsgId = progressMap?.get(progressKey);
-          if (progressMsgId && adapter.editMessage) {
-            const ok = await adapter.editMessage(chatId, progressMsgId, content);
-            if (ok) {
-              progressMap?.delete(progressKey);
-              return;
-            }
-          }
-
-          await adapter.sendMessage(chatId, content);
-          return;
+          // Auto-prompt: send file-only messages directly to the AI
+          // instead of waiting for a follow-up text instruction
+          bridgeLogger.info(
+            `[Incoming] file-only auto-prompt adapter=${adapterKey} chat=${chatId} files=${saved.length + duplicated.length}`,
+          );
+          text = '请查看用户发送的图片/文件。';
+          // Fall through to prompt logic below
         }
       }
 
