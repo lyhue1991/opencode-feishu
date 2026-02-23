@@ -6,7 +6,7 @@ Guidelines for coding agents working on **opencode-feishu**.
 
 TypeScript plugin for OpenCode that bridges AI agent conversations to messaging platforms (Feishu/Lark) via the adapter pattern. Runtime: Node.js / Bun. Requires `@opencode-ai/plugin` and `@opencode-ai/sdk` v1.1.48+.
 
-## Build & Development
+## Build, Lint, Test
 
 ```bash
 # Install dependencies
@@ -20,6 +20,8 @@ npx tsc --noEmit
 ```
 
 **No test framework, linter, or formatter is configured.** TypeScript strict mode (`strict: true`) is the primary code quality gate. Always run `npx tsc --noEmit` to verify changes compile cleanly.
+
+**Single-test runs:** not applicable (no test runner configured). If a test framework is introduced, document the single-test command here.
 
 **Running the plugin** -- reference it in `opencode.json` then start OpenCode:
 ```json
@@ -81,6 +83,7 @@ import type { BridgeAdapter } from '../types';
 - Strict mode is on -- no implicit `any`, explicit return types on exported functions.
 - Use `interface` for public contracts (e.g., `BridgeAdapter`), `type` for config objects and unions.
 - Use `?` for optional interface methods, not `| undefined`.
+- Avoid `as any` and unchecked casts; prefer narrowing and type guards.
 
 ### Naming
 
@@ -92,6 +95,12 @@ import type { BridgeAdapter } from '../types';
 | Constants         | `UPPER_SNAKE_CASE`  | `AGENT_LARK`, `UPDATE_INTERVAL`  |
 | Types/Interfaces  | `PascalCase`        | `BridgeAdapter`, `FeishuConfig`  |
 | Private members   | `private` keyword   | `private client: FeishuClient`   |
+
+### Formatting
+
+- Keep line length reasonable; wrap long conditions and object literals for readability.
+- Prefer early returns and small helpers over deeply nested blocks.
+- No auto-formatter is configured; keep edits consistent with nearby code.
 
 ### Error Handling
 
@@ -154,6 +163,11 @@ Cross-request state lives on `globalState` (`src/utils.ts`): adapter instances, 
 ### Adding Slash Commands
 
 Add a new `if (normalizedCommand === 'yourcommand')` branch in `src/handler/command.ts`.
+
+## Editor Rules
+
+- Cursor rules: none found in `.cursor/rules/` or `.cursorrules`.
+- Copilot rules: none found in `.github/copilot-instructions.md`.
 
 ## Key Files to Read First
 

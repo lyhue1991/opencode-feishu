@@ -367,7 +367,8 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
 
     providers.forEach((p, index) => {
       Object.keys(p.models).forEach((key, idx) => {
-        lines.push(`${index + 1}.${idx + 1}. ${p.models[key].name} (${p.models[key].id})`);
+        const modelName = p.models[key].name || p.models[key].id;
+        lines.push(`${index + 1}.${idx + 1}. ${p.id}/${modelName}`);
       });
     });
 
