@@ -32,17 +32,21 @@ type SaveResult = {
 const pendingFiles = new Map<string, StoredFileRecord[]>();
 const seenFiles = new Map<string, Map<string, StoredFileRecord>>();
 
-const FALLBACK_STORE_DIR = path.join(process.cwd(), 'bridge_files');
-let configuredStoreDir: string | undefined;
+let configuredStoreDir: string;
+
+function getDefaultStoreDir(): string {
+  const workDir = process.env.OPENCODE_WORKDIR || process.env.PWD || process.cwd();
+  return path.join(workDir, '.opencode', 'bridge_files');
+}
 
 function normalizeStoreDir(raw: string): string {
   const trimmed = raw.trim();
-  if (!trimmed) return FALLBACK_STORE_DIR;
+  if (!trimmed) return getDefaultStoreDir();
   if (/^file:\/\//i.test(trimmed)) {
     try {
       return path.normalize(fileURLToPath(trimmed));
     } catch {
-      return FALLBACK_STORE_DIR;
+      return getDefaultStoreDir();
     }
   }
   if (path.isAbsolute(trimmed)) return path.normalize(trimmed);
@@ -50,19 +54,20 @@ function normalizeStoreDir(raw: string): string {
 }
 
 function getStoreDir(): string {
-  if (configuredStoreDir) return configuredStoreDir;
-  return FALLBACK_STORE_DIR;
+  return configuredStoreDir;
 }
 
 export function setBridgeFileStoreDir(rawDir?: string): void {
   if (!rawDir || !rawDir.trim()) {
-    configuredStoreDir = undefined;
+    configuredStoreDir = getDefaultStoreDir();
     bridgeLogger.info(`[FileStore] using default store dir: ${getStoreDir()}`);
     return;
   }
   configuredStoreDir = normalizeStoreDir(rawDir);
   bridgeLogger.info(`[FileStore] configured store dir: ${configuredStoreDir}`);
 }
+
+configuredStoreDir = getDefaultStoreDir();
 
 function sanitizeSegment(value: string): string {
   return String(value || '')
