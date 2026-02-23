@@ -257,8 +257,16 @@ export async function handleSlashCommand(ctx: CommandContext): Promise<boolean> 
       try {
         const configRes = await api.config.providers();
         const defaults = configRes?.data?.default;
-        if (defaults && typeof defaults.model === 'string') {
-          currentModelText = defaults.model;
+        if (defaults && typeof defaults === 'object') {
+          // defaults is a map of providerID -> modelID, e.g. { "opencode": "big-pickle" }
+          const entries = Object.entries(defaults).filter(
+            ([, v]) => typeof v === 'string' && v,
+          );
+          if (entries.length > 0) {
+            currentModelText = entries
+              .map(([provider, model]) => `${provider}/${model}`)
+              .join(', ');
+          }
         }
       } catch (error) {
         bridgeLogger.warn('[Command] failed to get default model', error);
