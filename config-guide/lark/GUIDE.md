@@ -1,9 +1,5 @@
 ## 🚀 快速开始 --- 飞书
 
-
-[安装教程视频](https://www.bilibili.com/video/BV1jcFqz7EFW/?spm_id_from=333.1391.0.0&vd_source=eb4b8afe50082dead4e939bc4c55440b)
-录的不好请轻喷😅
-
 ### ⚙️ Opencode 配置 (`opencode.json`)
 
 > **注意：**
@@ -14,7 +10,7 @@
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["message-bridge-opencode-plugin"], // 由于官方issue 填[/your/path/message-bridge-opencode-plugin]
+  "plugin": ["opencode-feishu"], // 由于官方issue 填[/your/path/message-bridge-opencode-plugin]
   "agent": {
     "lark-bridge": {
       "disable": false,

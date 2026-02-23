@@ -162,7 +162,7 @@ npm install message-bridge-opencode-plugin
 
 - 飞书配置 
 	
-	[快速开始 🔗 ](https://github.com/YuanG1944/message-bridge-opencode-plugin/tree/main/config-guide/lark/GUIDE.zh.md)
+	[快速开始 🔗 ](https://github.com/lyhue1991/opencode-feishu/tree/main/config-guide/lark/GUIDE.md)
 
 可选文件桥配置（`agent.message-bridge.options`）：
 
@@ -183,8 +183,8 @@ npm install message-bridge-opencode-plugin
 ### 使用步骤
 
 ```bash
-git clone https://github.com/YuanG1944/message-bridge-opencode-plugin.git
-cd message-bridge-opencode-plugin
+git clone https://github.com/lyhue1991/opencode-feishu.git
+cd opencode-feishu
 bun install
 ```
 
