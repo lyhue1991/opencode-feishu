@@ -1,7 +1,7 @@
 // index.ts
 import type { Plugin } from '@opencode-ai/plugin';
 
-import { globalState, isEnabled, runtimeInstanceId } from './src/utils';
+import { globalState, isFeishuConfigAvailable, runtimeInstanceId } from './src/utils';
 import { AGENT_LARK } from './src/constants';
 import { bridgeLogger, getBridgeLogFilePath } from './src/logger';
 
@@ -42,7 +42,7 @@ export const BridgePlugin: Plugin = async ctx => {
       const adaptersToStart: Array<{ key: string; create: () => BridgeAdapter }> = [];
       const storeDirCandidates: string[] = [];
 
-      if (isEnabled(cfg, AGENT_LARK)) {
+      if (isFeishuConfigAvailable()) {
         const feishuCfg = parseFeishuConfig(cfg);
         if (feishuCfg.file_store_dir) storeDirCandidates.push(feishuCfg.file_store_dir);
         adaptersToStart.push({ key: AGENT_LARK, create: () => new FeishuAdapter(feishuCfg) });

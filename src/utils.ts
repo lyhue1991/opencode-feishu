@@ -1,7 +1,10 @@
-// src/utils.ts
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { Config } from '@opencode-ai/sdk';
 import type { BridgeGlobalState } from './global.state';
 import { BRIDGE_AGENT_IDS, UPDATE_INTERVAL } from './constants';
+
+const FEISHU_CONFIG_FILE = path.join(process.env.HOME || '', '.config/opencode/plugins/feishu.json');
 
 export const globalState = globalThis as BridgeGlobalState;
 export const runtimeInstanceId = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
@@ -34,6 +37,17 @@ export function isEnabled(cfg: Config | undefined, key: string): boolean {
   if (!node) return false;
   if (node.disable === true) return false;
   return true;
+}
+
+export function isFeishuConfigAvailable(): boolean {
+  try {
+    if (!fs.existsSync(FEISHU_CONFIG_FILE)) return false;
+    const content = fs.readFileSync(FEISHU_CONFIG_FILE, 'utf-8');
+    const config = JSON.parse(content);
+    return !!(config.app_id && config.app_secret);
+  } catch {
+    return false;
+  }
 }
 
 export function asRecord(value: unknown): Record<string, unknown> {

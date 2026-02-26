@@ -28,18 +28,16 @@
 
 ### Opencode 配置 (`opencode.json`)
 
+只需要在 plugin 中引用本插件即可：
+
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["/your/path/opencode-feishu"],
-  "agent": {
-    "lark-bridge": {
-      "disable": false,
-      "description": "Message Bridge Plugin"
-    }
-  }
+  "plugin": ["/your/path/opencode-feishu"]
 }
 ```
+
+插件会自动读取 `~/.config/opencode/plugins/feishu.json` 配置。
 
 ### 访问 [飞书开放平台](https://open.feishu.cn/app?lang=zh-CN)
 
