@@ -1,6 +1,6 @@
 # OpenCode 消息桥插件（Message Bridge - Feishu Only）
 
-`message-bridge-opencode-plugin` 是一个为 **OpenCode Agent** 设计的 **飞书消息桥插件**。
+`opencode-feishu` 是一个为 **OpenCode Agent** 设计的 **飞书消息桥插件**。
 
 该插件仅支持飞书（Feishu / Lark）平台，通过飞书 Bot 实现 AI Agent 与用户的消息互通。
 
@@ -146,7 +146,7 @@ BRIDGE_DEBUG=true BRIDGE_LOG_FILE=/tmp/bridge.log opencode web
 在 OpenCode Agent 配置目录中执行：
 
 ```bash
-npm install message-bridge-opencode-plugin
+npm install opencode-feishu
 ```
 
 > ⚠️ 由于 OpenCode 当前存在已知问题，暂时需要使用开发模式，详见下文。

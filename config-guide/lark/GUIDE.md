@@ -1,56 +1,45 @@
 ## 🚀 快速开始 --- 飞书
 
-### ⚙️ Opencode 配置 (`opencode.json`)
+### 配置文件
 
-> **注意：**
-> 强烈建议所有配置项均使用 **字符串类型**，以避免解析问题。
+飞书配置从独立配置文件读取，创建 `~/.config/opencode/plugins/feishu.json`：
 
-### 飞书（Webhook 模式）
+```json
+{
+  "app_id": "cli_xxxxxxx",
+  "app_secret": "xxxxxxxxxx",
+  "mode": "ws"
+}
+```
+
+**完整配置项：**
+
+| 配置项 | 必需 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `app_id` | 是 | - | 飞书应用 ID |
+| `app_secret` | 是 | - | 飞书应用密钥 |
+| `mode` | 否 | `ws` | 连接模式：`ws` 或 `webhook` |
+| `callback_url` | webhook 模式时必需 | - | Webhook 回调地址 |
+| `encrypt_key` | 否 | - | 加密密钥 |
+| `file_store_dir` | 否 | - | 文件存储目录 |
+| `auto_send_local_files` | 否 | `false` | 自动发送本地文件 |
+| `auto_send_local_files_allow_absolute` | 否 | `false` | 允许绝对路径 |
+| `auto_send_local_files_max_mb` | 否 | `20` | 最大文件大小(MB) |
+
+### Opencode 配置 (`opencode.json`)
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-feishu"], // 由于官方issue 填[/your/path/message-bridge-opencode-plugin]
+  "plugin": ["/your/path/opencode-feishu"],
   "agent": {
     "lark-bridge": {
       "disable": false,
-      "description": "Message Bridge Plugin",
-      "options": {
-        "platform": "feishu",
-        "mode": "webhook",
-        "app_id": "cli_xxxxxxx",
-        "app_secret": "xxxxxxxxxx",
-        "callback_url": "127.0.0.1:3000"
-      }
+      "description": "Message Bridge Plugin"
     }
   }
 }
 ```
-
-### 飞书（WebSocket 模式）
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["message-bridge-opencode-plugin"], // 由于官方issue 填[/your/path/message-bridge-opencode-plugin]
-  "agent": {
-    "lark-bridge": {
-      "disable": false,
-      "description": "Message Bridge Plugin",
-      "options": {
-        "platform": "feishu",
-        "mode": "ws",
-        "app_id": "cli_xxxxxxx",
-        "app_secret": "xxxxxxxxxx"
-      }
-    }
-  }
-}
-```
-
-
-
-### ⚙️ 飞书配置 
 
 ### 访问 [飞书开放平台](https://open.feishu.cn/app?lang=zh-CN)
 

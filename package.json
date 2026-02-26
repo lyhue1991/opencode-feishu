@@ -1,5 +1,5 @@
 {
-  "name": "message-bridge-opencode-plugin",
+  "name": "opencode-feishu",
   "version": "1.0.0",
   "description": "Feishu Bridge Plugin for OpenCode",
   "main": "index.ts",
@@ -9,12 +9,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/YuanG1944/message-bridge-opencode-plugin"
+    "url": "https://github.com/lyhue1991/opencode-feishu"
   },
   "bugs": {
-    "url": "https://github.com/YuanG1944/message-bridge-opencode-plugin/issues"
+    "url": "https://github.com/lyhue1991/opencode-feishu/issues"
   },
-  "homepage": "https://github.com/YuanG1944/message-bridge-opencode-plugin",
+  "homepage": "https://github.com/lyhue1991/opencode-feishu",
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
