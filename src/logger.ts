@@ -38,17 +38,19 @@ const logFilePath =
 // 根据模式决定是否输出到 stdout
 const opencodeMode = detectOpencodeMode();
 const isTuiMode = opencodeMode === 'tui';
+const isServeMode = opencodeMode === 'serve';
 
 // 优先级：环境变量 > 自动检测
 // 在 TUI 模式下默认禁用 stdout，除非显式设置 BRIDGE_LOG_STDOUT=true
-// 在 Web 模式下默认启用 stdout
+// 在 Web/serve 模式下默认启用 stdout
 const stdoutEnabled = (() => {
   const envValue = process.env.BRIDGE_LOG_STDOUT;
   if (envValue !== undefined) {
     return !['0', 'false', 'off', 'no'].includes(String(envValue).toLowerCase());
   }
-  // 自动检测：TUI 模式禁用，其他模式启用
-  return !isTuiMode;
+  // 自动检测：TUI 模式禁用，其他模式（web/serve/unknown）启用
+  // 明确检查 serve 模式确保可靠
+  return isServeMode || !isTuiMode;
 })();
 
 const debugEnabled = !['0', 'false', 'off', 'no'].includes(
